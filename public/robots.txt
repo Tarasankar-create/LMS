@@ -1,0 +1,3 @@
+# Login-protected demo application: keep it out of search indexes.
+User-agent: *
+Disallow: /

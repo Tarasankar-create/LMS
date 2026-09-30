@@ -1,0 +1,56 @@
+{
+  "hero-gate": {
+    "widths": [
+      480,
+      960,
+      1600
+    ],
+    "width": 2014,
+    "height": 781
+  },
+  "classroom-lecture": {
+    "widths": [
+      480,
+      960,
+      1600
+    ],
+    "width": 1672,
+    "height": 941
+  },
+  "classroom-learn": {
+    "widths": [
+      480,
+      960,
+      1536
+    ],
+    "width": 1536,
+    "height": 1024
+  },
+  "library": {
+    "widths": [
+      480,
+      960,
+      1536
+    ],
+    "width": 1536,
+    "height": 1024
+  },
+  "annual-function": {
+    "widths": [
+      480,
+      960,
+      1536
+    ],
+    "width": 1536,
+    "height": 1024
+  },
+  "campus-lawn": {
+    "widths": [
+      480,
+      960,
+      1536
+    ],
+    "width": 1536,
+    "height": 1024
+  }
+}

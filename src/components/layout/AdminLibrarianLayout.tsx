@@ -26,6 +26,7 @@ const PAGE_TITLES: [string, string][] = [
   [ROUTES.requests, 'Book Requests'],
   [ROUTES.fines, 'Fines'],
   [ROUTES.reports, 'Reports & Analytics'],
+  [ROUTES.ebooks, 'Digital Library (e-Books)'],
   [ROUTES.notices, 'Notices'],
   [ROUTES.settings, 'Library Settings'],
   [ROUTES.profile, 'My Profile'],

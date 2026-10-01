@@ -88,6 +88,7 @@ export function BooksCataloguePage() {
       const newBook: Book = {
         id: generateId('book'),
         ...values,
+        classification: (values as any).classification || 'Course',
         isbn: values.isbn || undefined,
         publisher: values.publisher || undefined,
         edition: values.edition || undefined,

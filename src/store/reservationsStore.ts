@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Reservation } from '@/types';
 import { useSettingsStore } from './settingsStore';
+import { useCopiesStore } from './copiesStore';
 import { addDaysISO, todayISO } from '@/utils/date';
 import { generateId } from '@/utils/id';
 
@@ -11,7 +12,7 @@ interface ReservationsState {
   reserve: (memberId: string, accessionNumber: string, bookId: string, bookTitle: string) => void;
   cancel: (id: string) => void;
   hasPendingReservation: (accessionNumber: string) => boolean;
-  promoteNext: (accessionNumber: string) => void;
+  promoteNext: (accessionNumber: string) => Reservation | undefined;
   checkExpiries: () => void;
 }
 
@@ -54,20 +55,28 @@ export const useReservationsStore = create<ReservationsState>()(
           .reservations.filter((r) => r.accessionNumber === accessionNumber && r.status === 'Waiting')
           .sort((a, b) => a.queuePosition - b.queuePosition);
         const next = candidates[0];
-        if (!next) return;
+        if (!next) return undefined;
 
         const today = todayISO();
+        const updatedReservation: Reservation = {
+          ...next,
+          status: 'Ready',
+          readyDate: today,
+          expiryDate: addDaysISO(today, reservationHoldDays),
+        };
         set((state) => ({
-          reservations: state.reservations.map((r) =>
-            r.id === next.id
-              ? { ...r, status: 'Ready', readyDate: today, expiryDate: addDaysISO(today, reservationHoldDays) }
-              : r,
-          ),
+          reservations: state.reservations.map((r) => (r.id === next.id ? updatedReservation : r)),
         }));
+        return updatedReservation;
       },
 
       checkExpiries: () => {
         const today = todayISO();
+        const expiring = get().reservations.filter(
+          (r) => r.status === 'Ready' && r.expiryDate && r.expiryDate < today,
+        );
+        if (expiring.length === 0) return;
+
         set((state) => ({
           reservations: state.reservations.map((r) => {
             if (r.status === 'Ready' && r.expiryDate && r.expiryDate < today) {
@@ -76,15 +85,24 @@ export const useReservationsStore = create<ReservationsState>()(
             return r;
           }),
         }));
-        // Cascade: any book that just lost a Ready reservation promotes its next Waiting entry.
-        const expiredAccessions = new Set(
-          get()
-            .reservations.filter((r) => r.status === 'Expired' && r.expiryDate === today)
-            .map((r) => r.accessionNumber),
-        );
-        expiredAccessions.forEach((accessionNumber) => get().promoteNext(accessionNumber));
+
+        // Cascade: For any book that lost a Ready reservation, promote next Waiting or release held copy
+        const expiredAccessions = new Set(expiring.map((r) => r.accessionNumber));
+        expiredAccessions.forEach((accessionNumber) => {
+          const nextPromoted = get().promoteNext(accessionNumber);
+          if (!nextPromoted) {
+            // No further waiting reservations: release one held copy back to general circulation (FR-RES-04)
+            const heldCopy = useCopiesStore
+              .getState()
+              .copies.find((c) => c.accessionNumber === accessionNumber && c.status === 'Held');
+            if (heldCopy) {
+              useCopiesStore.getState().setStatus(heldCopy.barcode, 'Available');
+            }
+          }
+        });
       },
     }),
     { name: 'psc-lms-reservations' },
   ),
 );
+

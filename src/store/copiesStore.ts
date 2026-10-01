@@ -19,6 +19,7 @@ interface CopiesState {
   /** Moves one Available copy to Held for an approved request; returns it. */
   holdOne: (accessionNumber: string) => BookCopy | undefined;
   setStatus: (barcode: string, status: CopyStatus) => BookCopy | undefined;
+  updateCopyStatus: (barcode: string, status: CopyStatus, reason?: string) => BookCopy | undefined;
   /** Removes up to `count` currently-Available copies (highest copy numbers first), e.g. when totalCopies is reduced. Returns how many were actually removed. */
   removeAvailableCopies: (accessionNumber: string, count: number) => number;
 }
@@ -72,6 +73,23 @@ export const useCopiesStore = create<CopiesState>()(
         const wasAvailable = copy.status === 'Available';
         const becomesAvailable = status === 'Available';
         const updated: BookCopy = { ...copy, status };
+        set((state) => ({ copies: state.copies.map((c) => (c.barcode === updated.barcode ? updated : c)) }));
+        if (wasAvailable && !becomesAvailable) useBooksStore.getState().decrementAvailable(copy.accessionNumber);
+        if (!wasAvailable && becomesAvailable) useBooksStore.getState().incrementAvailable(copy.accessionNumber);
+        return updated;
+      },
+
+      updateCopyStatus: (barcode, status, reason) => {
+        const copy = get().getByBarcode(barcode);
+        if (!copy) return undefined;
+        const wasAvailable = copy.status === 'Available';
+        const becomesAvailable = status === 'Available';
+        const updated: BookCopy = {
+          ...copy,
+          status,
+          statusReason: reason,
+          statusChangedDate: todayISO(),
+        };
         set((state) => ({ copies: state.copies.map((c) => (c.barcode === updated.barcode ? updated : c)) }));
         if (wasAvailable && !becomesAvailable) useBooksStore.getState().decrementAvailable(copy.accessionNumber);
         if (!wasAvailable && becomesAvailable) useBooksStore.getState().incrementAvailable(copy.accessionNumber);

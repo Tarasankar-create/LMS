@@ -39,6 +39,8 @@ import { StudentMyBooksPage } from '@/pages/student/StudentMyBooksPage';
 import { StudentRequestsPage } from '@/pages/student/StudentRequestsPage';
 import { StudentFinesPage } from '@/pages/student/StudentFinesPage';
 import { StudentNoticesPage } from '@/pages/student/StudentNoticesPage';
+import { EBooksManagementPage } from '@/pages/ebooks/EBooksManagementPage';
+import { StudentEBooksPage } from '@/pages/student/StudentEBooksPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 function RoleHome() {
@@ -85,6 +87,7 @@ export function AppRoutes() {
         <Route path={lmsRelative(ROUTES.fines)} element={guard('fines', 'view', <FinesPage />)} />
         <Route path={`${lmsRelative(ROUTES.fines)}/:id`} element={guard('fines', 'view', <FineDetailsPage />)} />
         <Route path={lmsRelative(ROUTES.reports)} element={guard('reports', 'view', <ReportsPage />)} />
+        <Route path={lmsRelative(ROUTES.ebooks)} element={guard('books', 'view', <EBooksManagementPage />)} />
         <Route path={lmsRelative(ROUTES.notices)} element={guard('notices', 'view', <NoticesPage />)} />
         <Route path={lmsRelative(ROUTES.profile)} element={<ProfilePage />} />
         <Route path={lmsRelative(ROUTES.noAccess)} element={<NoAccessPage />} />
@@ -103,6 +106,7 @@ export function AppRoutes() {
       >
         <Route path={lmsRelative(ROUTES.studentDashboard)} element={<StudentDashboardPage />} />
         <Route path={lmsRelative(ROUTES.studentCatalogue)} element={<StudentCataloguePage />} />
+        <Route path={lmsRelative(ROUTES.studentEBooks)} element={<StudentEBooksPage />} />
         <Route path={lmsRelative(ROUTES.studentMyBooks)} element={<StudentMyBooksPage />} />
         <Route path={lmsRelative(ROUTES.studentRequests)} element={<StudentRequestsPage />} />
         <Route path={lmsRelative(ROUTES.studentFines)} element={<StudentFinesPage />} />

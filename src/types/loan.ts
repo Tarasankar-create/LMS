@@ -12,6 +12,7 @@ export interface Loan {
   dueDate: string;
   returnDate?: string;
   status: LoanStatus;
-  renewalCount: 0 | 1;
+  renewalCount: number;
   fineId?: string;
 }
+

@@ -1,4 +1,4 @@
-export type CopyStatus = 'Available' | 'Held' | 'Issued' | 'Lost' | 'Damaged';
+export type CopyStatus = 'Available' | 'Held' | 'Issued' | 'Lost' | 'Damaged' | 'Withdrawn';
 
 /**
  * One physical copy of a book, identified by its own barcode sticker.
@@ -12,5 +12,9 @@ export interface BookCopy {
   bookId: string;
   copyNumber: number;
   status: CopyStatus;
+  statusReason?: string;
+  statusChangedDate?: string;
+  shelfLocation?: string;
   addedDate: string;
 }
+

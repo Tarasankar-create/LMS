@@ -1,17 +1,19 @@
 /**
- * Role-based access for the Library Management System: three roles and a fixed permission matrix
+ * Role-based access for the Library Management System: five roles and a fixed permission matrix
  * (module × action). There is no backend, so permissions are enforced in the browser only
  * (route guards and hidden controls). A real deployment must repeat every check on a server.
  */
 
-export const ROLES = ['admin', 'librarian', 'student'] as const;
+export const ROLES = ['admin', 'librarian', 'staff', 'principal', 'student'] as const;
 export type Role = (typeof ROLES)[number];
 
-export const STAFF_ROLES: Role[] = ['admin', 'librarian'];
+export const STAFF_ROLES: Role[] = ['admin', 'librarian', 'staff', 'principal'];
 
 export const ROLE_META: Record<Role, { label: string; description: string }> = {
-  admin: { label: 'Administrator', description: 'Full control of the library system.' },
-  librarian: { label: 'Librarian', description: 'Runs circulation, the catalogue, members, fines and notices.' },
+  admin: { label: 'Administrator', description: 'Full control of the library system and configuration.' },
+  librarian: { label: 'Librarian', description: 'Runs circulation, catalogue, members, reservations, fines and reports.' },
+  staff: { label: 'Staff', description: 'Circulation desk operations (issue, return, renew, reserve) and view catalogue/fines.' },
+  principal: { label: 'Principal', description: 'Read-only access to all reports, catalogue, and fines.' },
   student: { label: 'Student', description: 'Student self-service portal only.' },
 };
 
@@ -53,6 +55,19 @@ export function buildDefaultMatrix(): PermissionMatrix {
       reports: ['view'],
       notices: ['view', 'create', 'edit', 'delete'],
     },
+    staff: {
+      books: ['view'],
+      circulation: ['view', 'create', 'edit'],
+      reservations: ['view', 'create', 'edit'],
+      fines: ['view'],
+      notices: ['view'],
+    },
+    principal: {
+      books: ['view'],
+      fines: ['view'],
+      reports: ['view'],
+      notices: ['view'],
+    },
     student: {},
   };
 }
@@ -61,3 +76,4 @@ export function can(matrix: PermissionMatrix, role: Role | undefined | null, mod
   if (!role) return false;
   return matrix[role]?.[module]?.includes(action) ?? false;
 }
+

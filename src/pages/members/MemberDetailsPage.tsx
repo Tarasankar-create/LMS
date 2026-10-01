@@ -1,25 +1,35 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Mail, Phone, UserX } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, UserX, ShieldAlert, ShieldCheck } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Avatar } from '@/components/common/Avatar';
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { EmptyState } from '@/components/common/EmptyState';
+import { BlockOverrideModal } from '@/components/modals/BlockOverrideModal';
 import { useMembersStore } from '@/store/membersStore';
 import { useLoansStore } from '@/store/loansStore';
 import { useFinesStore } from '@/store/finesStore';
+import { useSettingsStore } from '@/store/settingsStore';
+import { useCan } from '@/access/useCan';
 import { formatDate } from '@/utils/date';
 import { formatCurrency } from '@/utils/currency';
+import { evaluateMemberBlockStatus } from '@/utils/blockChecker';
 import { ROUTES } from '@/routes/routePaths';
 
 export function MemberDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [overrideModalOpen, setOverrideModalOpen] = useState(false);
 
   const member = useMembersStore((s) => s.getById(id ?? ''));
+  const clearBlockOverride = useMembersStore((s) => s.clearBlockOverride);
   const loans = useLoansStore((s) => s.loans);
   const fines = useFinesStore((s) => s.fines);
+  const settings = useSettingsStore((s) => s.settings);
+  const can = useCan();
+  const canOverride = can('circulation', 'edit');
 
   const memberLoans = useMemo(
     () => (member ? loans.filter((l) => l.memberId === member.memberId) : []),
@@ -35,6 +45,17 @@ export function MemberDetailsPage() {
     () => memberFines.filter((f) => f.status === 'Pending').reduce((sum, f) => sum + f.amount, 0),
     [memberFines],
   );
+
+  const blockStatus = useMemo(
+    () => (member ? evaluateMemberBlockStatus(member, loans, fines, settings) : null),
+    [member, loans, fines, settings],
+  );
+
+  function handleRevokeOverride() {
+    if (!member) return;
+    clearBlockOverride(member.memberId);
+    toast.success('Block override revoked.');
+  }
 
   if (!member) {
     return (
@@ -95,6 +116,67 @@ export function MemberDetailsPage() {
               <dd className="text-secondary-600">{member.phone}</dd>
             </div>
           </dl>
+
+          {/* Circulation Block Status (FR-BLOCK-01 / 02) */}
+          <div className="mt-5 border-t border-secondary-100 pt-4">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-secondary-500">Circulation Status</span>
+              {blockStatus?.isBlocked ? (
+                blockStatus.isOverridden ? (
+                  <Badge tone="warning">Overridden</Badge>
+                ) : (
+                  <Badge tone="danger">Blocked</Badge>
+                )
+              ) : (
+                <Badge tone="success">Good Standing</Badge>
+              )}
+            </div>
+
+            {blockStatus?.isBlocked ? (
+              <div className="rounded-lg border border-danger-200 bg-danger-50 p-3 text-xs">
+                <div className="flex items-start gap-2 text-danger-800">
+                  <ShieldAlert className="mt-0.5 size-4 shrink-0" />
+                  <div>
+                    <p className="font-semibold">Borrowing Privileges Blocked</p>
+                    <ul className="mt-1 list-inside list-disc space-y-0.5">
+                      {blockStatus.reasons.map((r, i) => (
+                        <li key={i}>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {blockStatus.isOverridden && member.blockOverride && (
+                  <div className="mt-2 rounded border border-warning-300 bg-warning-50 p-2 text-warning-800">
+                    <p className="font-semibold">Active Override:</p>
+                    <p className="italic">"{member.blockOverride.reason}"</p>
+                    <p className="mt-1 text-[11px] text-warning-700">
+                      By {member.blockOverride.overriddenByName} on {member.blockOverride.overriddenAt}
+                    </p>
+                  </div>
+                )}
+
+                {canOverride && (
+                  <div className="mt-3 flex gap-2">
+                    {blockStatus.isOverridden ? (
+                      <Button size="sm" variant="outline" className="w-full text-xs" onClick={handleRevokeOverride}>
+                        Revoke Override
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="danger" className="w-full text-xs" onClick={() => setOverrideModalOpen(true)}>
+                        <ShieldCheck className="mr-1 size-3.5" /> Authorize Override
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 rounded-lg border border-success-200 bg-success-50 p-3 text-xs text-success-800">
+                <ShieldCheck className="size-4 shrink-0 text-success-600" />
+                <span>Eligible to borrow up to {settings.maxConcurrentLoans} books simultaneously.</span>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="rounded-xl border border-secondary-100 bg-white p-5 shadow-sm lg:col-span-2">
@@ -174,6 +256,13 @@ export function MemberDetailsPage() {
           )}
         </div>
       </div>
+
+      <BlockOverrideModal
+        member={member}
+        isOpen={overrideModalOpen}
+        onClose={() => setOverrideModalOpen(false)}
+      />
     </div>
   );
 }
+

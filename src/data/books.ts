@@ -16,8 +16,13 @@ const FIXED_BOOKS: Omit<Book, 'availableCopies' | 'status'>[] = [
     accessionNumber: 'PSC-0001',
     title: 'Indian Polity',
     author: 'M. Laxmikanth',
+    subject: 'Political Science',
+    classification: 'Stream - Arts',
     category: 'Arts',
     isbn: '978-93-5260-363-3',
+    publisher: 'McGraw Hill',
+    edition: '6th',
+    price: 450,
     totalCopies: 10,
     shelfLocation: 'A-101',
     libraryUseOnly: false,
@@ -28,8 +33,13 @@ const FIXED_BOOKS: Omit<Book, 'availableCopies' | 'status'>[] = [
     accessionNumber: 'PSC-0002',
     title: 'Introduction to Physics',
     author: 'H.C. Verma',
+    subject: 'Physics',
+    classification: 'Stream - Science',
     category: 'Science',
     isbn: '978-81-7709-187-1',
+    publisher: 'Bharati Bhawan',
+    edition: '1st',
+    price: 380,
     totalCopies: 8,
     shelfLocation: 'B-204',
     libraryUseOnly: false,
@@ -40,7 +50,12 @@ const FIXED_BOOKS: Omit<Book, 'availableCopies' | 'status'>[] = [
     accessionNumber: 'PSC-0003',
     title: 'Odia Literature',
     author: 'Fakir Mohan Senapati',
+    subject: 'Odia',
+    classification: 'Course',
     category: 'Literature',
+    publisher: 'Grantha Mandir',
+    edition: '2nd',
+    price: 220,
     totalCopies: 5,
     shelfLocation: 'C-102',
     libraryUseOnly: false,
@@ -51,7 +66,12 @@ const FIXED_BOOKS: Omit<Book, 'availableCopies' | 'status'>[] = [
     accessionNumber: 'PSC-0004',
     title: 'Computer Fundamentals',
     author: 'P.K. Sinha',
+    subject: 'Computer Science',
+    classification: 'Course',
     category: 'Commerce',
+    publisher: 'BPB Publications',
+    edition: '8th',
+    price: 350,
     totalCopies: 12,
     shelfLocation: 'D-301',
     libraryUseOnly: false,
@@ -146,12 +166,34 @@ function buildGeneratedBooks(count: number): Omit<Book, 'availableCopies' | 'sta
     accessionCounter += 1;
     const accessionNumber = `PSC-${String(accessionCounter).padStart(4, '0')}`;
 
+    let classification: import('@/types').BookClassification = 'Course';
+    if (category === 'Arts') classification = 'Stream - Arts';
+    else if (category === 'Science') classification = 'Stream - Science';
+    else if (category === 'Reference') classification = i % 2 === 0 ? 'Journals' : 'Current Affairs';
+    else if (i % 5 === 0) classification = 'Others';
+
+    const subject =
+      category === 'Arts'
+        ? 'Social Studies'
+        : category === 'Science'
+          ? 'Natural Sciences'
+          : category === 'Commerce'
+            ? 'Commerce & Computing'
+            : category === 'Literature'
+              ? 'Language & Literature'
+              : 'General Reference';
+
     books.push({
       id: `book_${accessionNumber.toLowerCase()}`,
       accessionNumber,
       title,
       author: pickFrom(rng, AUTHORS),
+      subject,
+      classification,
       category,
+      publisher: 'Odisha State Bureau of Textbooks',
+      edition: `${(i % 3) + 1}st`,
+      price: randomInt(rng, 150, 700),
       totalCopies,
       shelfLocation: `${CATEGORY_SHELF_PREFIX[category]}-${randomInt(rng, 100, 399)}`,
       libraryUseOnly: isReference,

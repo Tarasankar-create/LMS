@@ -12,15 +12,25 @@ export function canIssueMoreBooks(
   return activeLoansForMember.length < settings.maxConcurrentLoans;
 }
 
-export function canRenew(loan: Loan, hasPendingReservation: boolean): { allowed: boolean; reason?: string } {
+export function canRenew(
+  loan: Loan,
+  hasPendingReservation: boolean,
+  maxRenewals: number = 1,
+): { allowed: boolean; reason?: string } {
   if (loan.status !== 'Active') {
     return { allowed: false, reason: 'This loan is already closed.' };
   }
-  if (loan.renewalCount >= 1) {
-    return { allowed: false, reason: 'This loan has already been renewed once.' };
-  }
   if (hasPendingReservation) {
-    return { allowed: false, reason: 'Renewal is blocked — another member has reserved this title.' };
+    return {
+      allowed: false,
+      reason: 'Renewal rejected: Another student has placed an active reservation on this title (FR-REN-02).',
+    };
+  }
+  if (loan.renewalCount >= maxRenewals) {
+    return {
+      allowed: false,
+      reason: `Renewal rejected: Maximum renewal limit (${maxRenewals}) reached for this book (FR-REN-01).`,
+    };
   }
   return { allowed: true };
 }
@@ -32,3 +42,4 @@ export function calculateRenewedDueDate(loan: Loan, settings: Pick<LibrarySettin
 export function issuedToday(loans: Loan[], asOfISO: string = todayISO()): Loan[] {
   return loans.filter((loan) => loan.issueDate === asOfISO);
 }
+

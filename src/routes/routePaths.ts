@@ -32,6 +32,7 @@ export const ROUTES = {
   fineDetails: (id: string) => `${LMS_BASE}/fines/${id}`,
 
   reports: `${LMS_BASE}/reports`,
+  ebooks: `${LMS_BASE}/ebooks`,
   notices: `${LMS_BASE}/notices`,
   settings: `${LMS_BASE}/settings`,
   profile: `${LMS_BASE}/profile`,
@@ -39,6 +40,7 @@ export const ROUTES = {
 
   studentDashboard: `${LMS_BASE}/student/dashboard`,
   studentCatalogue: `${LMS_BASE}/student/catalogue`,
+  studentEBooks: `${LMS_BASE}/student/ebooks`,
   studentMyBooks: `${LMS_BASE}/student/my-books`,
   studentRequests: `${LMS_BASE}/student/requests`,
   studentFines: `${LMS_BASE}/student/fines`,

@@ -39,6 +39,28 @@ export const SEED_USERS: User[] = [
     lastLoginAt: iso(-2, '13:10'),
   },
   {
+    id: 'user_staff',
+    username: 'staff',
+    password: 'staff123',
+    name: 'Priyanka Samal',
+    role: 'staff',
+    status: 'active',
+    email: 'priyanka.samal@pscollege.ac.in',
+    createdAt: iso(-180),
+    lastLoginAt: iso(0, '08:45'),
+  },
+  {
+    id: 'user_principal',
+    username: 'principal',
+    password: 'principal123',
+    name: 'Prof. Ramesh Chandra Jena',
+    role: 'principal',
+    status: 'active',
+    email: 'principal@pscollege.ac.in',
+    createdAt: iso(-500),
+    lastLoginAt: iso(-1, '11:00'),
+  },
+  {
     id: 'user_student_2026001',
     username: '2026001',
     password: 'student123',
@@ -56,5 +78,7 @@ export const SEED_USERS: User[] = [
 export const DEMO_LOGIN_HINTS: { role: string; username: string; password: string }[] = [
   { role: 'Administrator', username: 'admin', password: 'admin123' },
   { role: 'Librarian', username: 'librarian', password: 'librarian123' },
+  { role: 'Staff Desk', username: 'staff', password: 'staff123' },
+  { role: 'Principal (Read-Only)', username: 'principal', password: 'principal123' },
   { role: 'Student', username: '2026001', password: 'student123' },
 ];

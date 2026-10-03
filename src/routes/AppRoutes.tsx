@@ -32,6 +32,7 @@ import { FineDetailsPage } from '@/pages/fines/FineDetailsPage';
 import { ReportsPage } from '@/pages/reports/ReportsPage';
 import { NoticesPage } from '@/pages/notices/NoticesPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
+import { AdminUsersPage } from '@/pages/admin/AdminUsersPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
 import { StudentDashboardPage } from '@/pages/student/StudentDashboardPage';
 import { StudentCataloguePage } from '@/pages/student/StudentCataloguePage';
@@ -94,6 +95,10 @@ export function AppRoutes() {
         <Route
           path={lmsRelative(ROUTES.settings)}
           element={guard('librarySettings', 'view', <SettingsPage />)}
+        />
+        <Route
+          path={lmsRelative(ROUTES.adminUsers)}
+          element={guard('librarySettings', 'view', <AdminUsersPage />)}
         />
       </Route>
 

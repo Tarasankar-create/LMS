@@ -35,6 +35,7 @@ export const ROUTES = {
   ebooks: `${LMS_BASE}/ebooks`,
   notices: `${LMS_BASE}/notices`,
   settings: `${LMS_BASE}/settings`,
+  adminUsers: `${LMS_BASE}/admin/users`,
   profile: `${LMS_BASE}/profile`,
 
 

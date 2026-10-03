@@ -10,6 +10,7 @@ import {
   Settings,
   ClipboardList,
   FileText,
+  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { ROUTES } from '@/routes/routePaths';
@@ -42,6 +43,7 @@ export const STAFF_NAV_ITEMS: NavItem[] = [
   { label: 'Fines', path: ROUTES.fines, icon: Receipt, group: 'Library', permission: ['fines'] },
   { label: 'Reports', path: ROUTES.reports, icon: BarChart3, group: 'Library', permission: ['reports'] },
   { label: 'Notices', path: ROUTES.notices, icon: Megaphone, group: 'Library', permission: ['notices'] },
+  { label: 'Staff & Users', path: ROUTES.adminUsers, icon: ShieldCheck, group: 'Library', permission: ['librarySettings'] },
   { label: 'Library Settings', path: ROUTES.settings, icon: Settings, group: 'Library', permission: ['librarySettings'] },
 ];
 

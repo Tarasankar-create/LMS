@@ -191,6 +191,7 @@ export function BulkImportModal({ isOpen, onClose }: BulkImportModalProps) {
         accessionNumber: acc,
         title,
         author,
+        category: classification.startsWith('Stream - Science') ? 'Science' : classification.startsWith('Stream - Arts') ? 'Arts' : 'Reference',
         subject,
         classification,
         publisher: rawPub?.trim() || undefined,
@@ -306,11 +307,10 @@ export function BulkImportModal({ isOpen, onClose }: BulkImportModalProps) {
                 <p className="mt-2 text-2xl font-bold text-success-700">{importStats.imported} titles</p>
               </div>
               <div
-                className={`rounded-lg border p-4 ${
-                  importStats.failed > 0
+                className={`rounded-lg border p-4 ${importStats.failed > 0
                     ? 'border-danger-200 bg-danger-50 text-danger-800'
                     : 'border-secondary-200 bg-secondary-50 text-secondary-600'
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-2">
                   <AlertCircle className={`size-5 ${importStats.failed > 0 ? 'text-danger-600' : 'text-secondary-400'}`} />

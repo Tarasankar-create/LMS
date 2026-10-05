@@ -35,14 +35,14 @@ export function EBooksManagementPage() {
 
   async function handleDelete(ebook: EBook) {
     const ok = await confirm({
-      title: 'Delete e-Book?',
+      title: 'Delete Journal?',
       description: `Are you sure you want to permanently delete "${ebook.title}"?`,
       confirmLabel: 'Delete',
       tone: 'danger',
     });
     if (ok) {
       deleteEBook(ebook.id);
-      toast.success('e-Book deleted.');
+      toast.success('Journal deleted.');
     }
   }
 
@@ -63,11 +63,11 @@ export function EBooksManagementPage() {
   return (
     <div>
       <PageHeader
-        title="Digital Library (e-Books)"
+        title="Journals"
         description="Upload and publish electronic syllabus materials, lecture notes, and e-books for student access (FR-ELIB-01)."
         actions={
           <Button onClick={() => setUploadOpen(true)}>
-            <Plus className="mr-1.5 size-4" /> Upload Document / e-Book
+            <Plus className="mr-1.5 size-4" /> Upload Journal
           </Button>
         }
       />
@@ -93,7 +93,7 @@ export function EBooksManagementPage() {
 
         <input
           type="text"
-          placeholder="Filter documents..."
+          placeholder="Filter journals..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="rounded-lg border border-secondary-200 px-3 py-1.5 text-xs focus:border-primary-400 focus:outline-none"
@@ -106,7 +106,7 @@ export function EBooksManagementPage() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-secondary-100 bg-secondary-50/60 text-xs font-semibold uppercase tracking-wide text-secondary-500">
               <tr>
-                <th className="px-4 py-3">Document Title & Details</th>
+                <th className="px-4 py-3">Journal Title & Details</th>
                 <th className="px-4 py-3">Classification</th>
                 <th className="px-4 py-3">Size / Uploaded By</th>
                 <th className="px-4 py-3">Publish Status (FR-ELIB-01)</th>
@@ -117,7 +117,7 @@ export function EBooksManagementPage() {
               {filteredEBooks.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-sm text-secondary-500">
-                    No electronic documents found matching criteria.
+                    No journals found matching criteria.
                   </td>
                 </tr>
               ) : (

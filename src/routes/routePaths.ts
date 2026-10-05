@@ -32,16 +32,17 @@ export const ROUTES = {
   fineDetails: (id: string) => `${LMS_BASE}/fines/${id}`,
 
   reports: `${LMS_BASE}/reports`,
-  ebooks: `${LMS_BASE}/ebooks`,
+  journals: `${LMS_BASE}/journals`,
+  ebooks: `${LMS_BASE}/journals`,
   notices: `${LMS_BASE}/notices`,
   settings: `${LMS_BASE}/settings`,
   adminUsers: `${LMS_BASE}/admin/users`,
   profile: `${LMS_BASE}/profile`,
 
-
   studentDashboard: `${LMS_BASE}/student/dashboard`,
   studentCatalogue: `${LMS_BASE}/student/catalogue`,
-  studentEBooks: `${LMS_BASE}/student/ebooks`,
+  studentJournals: `${LMS_BASE}/student/journals`,
+  studentEBooks: `${LMS_BASE}/student/journals`,
   studentMyBooks: `${LMS_BASE}/student/my-books`,
   studentRequests: `${LMS_BASE}/student/requests`,
   studentFines: `${LMS_BASE}/student/fines`,

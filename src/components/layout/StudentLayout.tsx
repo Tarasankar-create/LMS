@@ -14,7 +14,7 @@ import { ROUTES } from '@/routes/routePaths';
 const PAGE_TITLES: [string, string][] = [
   [ROUTES.studentDashboard, 'Dashboard'],
   [ROUTES.studentCatalogue, 'Library Catalogue'],
-  [ROUTES.studentEBooks, 'Digital Library (e-Books)'],
+  [ROUTES.studentJournals, 'Journals'],
   [ROUTES.studentMyBooks, 'My Books'],
   [ROUTES.studentRequests, 'My Requests'],
   [ROUTES.studentFines, 'My Fines'],

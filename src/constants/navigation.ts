@@ -35,7 +35,7 @@ export interface NavItem {
 export const STAFF_NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', path: ROUTES.dashboard, icon: LayoutDashboard, group: 'Library', permission: ['reports'] },
   { label: 'Books Catalogue', path: ROUTES.books, icon: BookOpen, group: 'Library', permission: ['books'] },
-  { label: 'Digital Library', path: ROUTES.ebooks, icon: FileText, group: 'Library', permission: ['books'] },
+  { label: 'Journals', path: ROUTES.journals, icon: FileText, group: 'Library', permission: ['books'] },
   { label: 'Issue & Return', path: ROUTES.circulationActive, icon: ArrowLeftRight, group: 'Library', permission: ['circulation'] },
   { label: 'Members', path: ROUTES.members, icon: Users, group: 'Library', permission: ['members'] },
   { label: 'Reservations', path: ROUTES.reservations, icon: BookMarked, group: 'Library', permission: ['reservations'] },
@@ -50,7 +50,7 @@ export const STAFF_NAV_ITEMS: NavItem[] = [
 export const STUDENT_NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', path: ROUTES.studentDashboard, icon: LayoutDashboard },
   { label: 'Catalogue', path: ROUTES.studentCatalogue, icon: BookOpen },
-  { label: 'e-Books', path: ROUTES.studentEBooks, icon: FileText },
+  { label: 'Journals', path: ROUTES.studentJournals, icon: FileText },
   { label: 'My Books', path: ROUTES.studentMyBooks, icon: BookMarked },
   { label: 'My Requests', path: ROUTES.studentRequests, icon: ClipboardList },
   { label: 'Fines', path: ROUTES.studentFines, icon: Receipt },

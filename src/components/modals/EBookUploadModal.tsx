@@ -56,8 +56,8 @@ export function EBookUploadModal({ isOpen, onClose }: EBookUploadModalProps) {
 
     toast.success(
       isPublished
-        ? 'e-Book uploaded and published to students!'
-        : 'e-Book uploaded as Draft. Publish it when ready for students to view.'
+        ? 'Journal uploaded and published to students!'
+        : 'Journal uploaded as Draft. Publish it when ready for students to view.'
     );
     onClose();
     // Reset form
@@ -72,10 +72,10 @@ export function EBookUploadModal({ isOpen, onClose }: EBookUploadModalProps) {
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Upload Digital e-Book / Document (FR-ELIB-01)" size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Upload Digital Journal / Paper (FR-ELIB-01)" size="lg">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium text-secondary-700">Document Title *</label>
+          <label className="mb-1 block text-sm font-medium text-secondary-700">Journal / Article Title *</label>
           <input
             type="text"
             required
@@ -88,7 +88,7 @@ export function EBookUploadModal({ isOpen, onClose }: EBookUploadModalProps) {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-sm font-medium text-secondary-700">Author / Faculty / Source *</label>
+            <label className="mb-1 block text-sm font-medium text-secondary-700">Author / Editor / Publisher *</label>
             <input
               type="text"
               required
@@ -116,7 +116,7 @@ export function EBookUploadModal({ isOpen, onClose }: EBookUploadModalProps) {
 
         {/* File upload */}
         <div>
-          <label className="mb-1 block text-sm font-medium text-secondary-700">e-Book File (PDF, EPUB) *</label>
+          <label className="mb-1 block text-sm font-medium text-secondary-700">Journal File (PDF, EPUB) *</label>
           <div className="flex items-center gap-3 rounded-lg border border-secondary-200 p-3">
             <label className="cursor-pointer inline-flex items-center gap-2 rounded-lg bg-secondary-100 px-3 py-1.5 text-xs font-semibold text-secondary-700 hover:bg-secondary-200">
               <Upload className="size-4" /> Browse PDF File
@@ -151,7 +151,7 @@ export function EBookUploadModal({ isOpen, onClose }: EBookUploadModalProps) {
             <div>
               <p className="text-sm font-medium text-ink">Publish immediately for student access</p>
               <p className="text-xs text-secondary-500">
-                Per FR-ELIB-01, leaving this unchecked keeps the e-book in Draft status, hidden from students until explicitly published.
+                Per FR-ELIB-01, leaving this unchecked keeps the journal in Draft status, hidden from students until explicitly published.
               </p>
             </div>
           </label>
@@ -161,7 +161,7 @@ export function EBookUploadModal({ isOpen, onClose }: EBookUploadModalProps) {
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit">Upload Document</Button>
+          <Button type="submit">Upload Journal</Button>
         </div>
       </form>
     </Modal>

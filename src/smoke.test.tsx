@@ -32,12 +32,13 @@ describe('smoke', () => {
     expect((await render('/login')).text).toContain('Library Management System');
 
     expect(useAuthStore.getState().login('staff', 'librarian', 'librarian123').success).toBe(true);
-    for (const p of ['/dashboard', '/books', '/circulation/active', '/circulation/issue', '/circulation/return', '/members', '/reservations', '/requests', '/fines', '/reports', '/notices', '/settings', '/profile']) {
+    for (const p of ['/dashboard', '/books', '/journals', '/circulation/active', '/circulation/issue', '/circulation/return', '/members', '/reservations', '/requests', '/fines', '/reports', '/notices', '/settings', '/profile']) {
       const { text } = await render(p);
       expect(text.length, p).toBeGreaterThan(50);
       expect(text, p).not.toContain('Page not found');
     }
     expect((await render('/notices')).text).toContain('New Notice');
+    expect((await render('/journals')).text).toContain('Journals');
     // the librarian queue and the barcode-scan issue field both render
     expect((await render('/requests')).text).toContain('Book Requests');
     expect((await render('/circulation/issue')).html).toContain('Scan or type a copy barcode');
@@ -52,9 +53,10 @@ describe('smoke', () => {
 
     useAuthStore.getState().logout();
     expect(useAuthStore.getState().login('student', '2026001', 'student123').success).toBe(true);
-    for (const p of ['/student/dashboard', '/student/catalogue', '/student/my-books', '/student/requests', '/student/fines', '/student/notices']) {
+    for (const p of ['/student/dashboard', '/student/catalogue', '/student/journals', '/student/my-books', '/student/requests', '/student/fines', '/student/notices']) {
       expect((await render(p)).text.length, p).toBeGreaterThan(50);
     }
+    expect((await render('/student/journals')).text).toContain('Journals');
     expect((await render('/student/notices')).text).toContain('New arrivals');
     expect((await render('/student/requests')).text).toContain('My Requests');
     // an available title in the catalogue offers Request, not just Reserve

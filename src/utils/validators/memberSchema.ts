@@ -4,7 +4,7 @@ export const memberSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   rollNumber: z.string().min(1, 'Roll number is required'),
   department: z.string().min(1, 'Department is required'),
-  academicYear: z.string().min(1, 'Academic year is required'),
+  academicYear: z.string().optional(),
   email: z.string().email('Enter a valid email'),
   phone: z
     .string()

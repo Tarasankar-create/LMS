@@ -18,7 +18,7 @@ export const BOOK_DEPARTMENTS = [
   'Philosophy',
   'Sanskrit',
   'Sociology',
-  'General',
+  'Others',
 ] as const;
 export type BookDepartment = (typeof BOOK_DEPARTMENTS)[number];
 
@@ -58,3 +58,4 @@ export interface Book {
   acquisitionSource?: string;
   addedDate: string;
 }
+

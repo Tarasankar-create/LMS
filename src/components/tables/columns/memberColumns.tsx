@@ -20,7 +20,6 @@ export function createMemberColumns({ onView, onEdit }: MemberColumnHandlers): C
     { accessorKey: 'name', header: 'Name' },
     { accessorKey: 'rollNumber', header: 'Roll No.' },
     { accessorKey: 'department', header: 'Department' },
-    { accessorKey: 'academicYear', header: 'Year' },
     { accessorKey: 'totalBooksIssued', header: 'Books Issued' },
     {
       accessorKey: 'outstandingFine',

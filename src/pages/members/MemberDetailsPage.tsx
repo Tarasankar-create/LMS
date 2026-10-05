@@ -103,10 +103,12 @@ export function MemberDetailsPage() {
               <dt className="text-secondary-500">Department</dt>
               <dd className="font-medium text-ink">{member.department}</dd>
             </div>
-            <div>
-              <dt className="text-secondary-500">Academic Year</dt>
-              <dd className="font-medium text-ink">{member.academicYear}</dd>
-            </div>
+            {member.academicYear && (
+              <div>
+                <dt className="text-secondary-500">Academic Year</dt>
+                <dd className="font-medium text-ink">{member.academicYear}</dd>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <Mail className="size-4 text-secondary-500" />
               <dd className="text-secondary-600">{member.email}</dd>

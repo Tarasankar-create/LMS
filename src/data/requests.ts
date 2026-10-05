@@ -2,7 +2,7 @@ import type { Book, BookCopy, BookRequest, Member } from '@/types';
 import { DEFAULT_SETTINGS } from '@/types';
 import { SEED_COUNTS } from './seedConfig';
 import { createSeededRandom, pickFrom } from './seededRandom';
-import { addDaysISO, todayISO } from '@/utils/date';
+import { addDaysISO, todayISO, formatTime } from '@/utils/date';
 import { generateId } from '@/utils/id';
 
 /**
@@ -25,13 +25,19 @@ export function buildRequests(books: Book[], copies: BookCopy[], members: Member
     const member = pickFrom(rng, members);
     const kind = i % 3; // cycle Pending, Approved, Rejected for a realistic mixed queue
 
+    const reqDate = addDaysISO(today, -(i % 4));
+    const hour = String(9 + (i % 8)).padStart(2, '0');
+    const minute = String((i * 17) % 60).padStart(2, '0');
+    const reqAt = `${reqDate}T${hour}:${minute}:00`;
     const base: BookRequest = {
       id: generateId('req'),
       memberId: member.memberId,
       accessionNumber: book.accessionNumber,
       bookId: book.id,
       bookTitle: book.title,
-      requestedDate: addDaysISO(today, -(i % 4)),
+      requestedDate: reqDate,
+      requestedAt: reqAt,
+      requestedTime: formatTime(reqAt),
       status: 'Pending',
     };
 

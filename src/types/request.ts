@@ -12,6 +12,8 @@ export interface BookRequest {
   bookId: string;
   bookTitle: string;
   requestedDate: string;
+  requestedAt?: string;
+  requestedTime?: string;
   status: BookRequestStatus;
   /** Set once approved — the specific copy held for this student. */
   heldCopyBarcode?: string;

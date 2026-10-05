@@ -16,7 +16,7 @@ export interface Member {
   role?: Role;
   rollNumber: string;
   department: string;
-  academicYear: string;
+  academicYear?: string;
   email: string;
   phone: string;
   status: MemberStatus;

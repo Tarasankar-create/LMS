@@ -16,6 +16,11 @@ export function createBookColumns({ onView, onEdit, onRetire }: BookColumnHandle
     { accessorKey: 'author', header: 'Author' },
     { accessorKey: 'category', header: 'Category' },
     {
+      accessorKey: 'department',
+      header: 'Department',
+      cell: ({ row }) => <span>{row.original.department || '-'}</span>,
+    },
+    {
       id: 'copies',
       header: 'Copies',
       accessorFn: (book) => `${book.availableCopies}/${book.totalCopies}`,

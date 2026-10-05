@@ -5,7 +5,7 @@ import { useBooksStore } from './booksStore';
 import { useCopiesStore } from './copiesStore';
 import { useSettingsStore } from './settingsStore';
 import { useLoansStore } from './loansStore';
-import { addDaysISO, todayISO } from '@/utils/date';
+import { addDaysISO, todayISO, nowISO, formatTime } from '@/utils/date';
 import { generateId } from '@/utils/id';
 
 export type RequestResult = { success: true; request: BookRequest } | { success: false; error: string };
@@ -54,6 +54,7 @@ export const useRequestsStore = create<RequestsState>()(
         if (get().hasOpenRequest(memberId, accessionNumber)) {
           return { success: false, error: 'You already have an open request for this title.' };
         }
+        const now = nowISO();
         const req: BookRequest = {
           id: generateId('req'),
           memberId,
@@ -61,6 +62,8 @@ export const useRequestsStore = create<RequestsState>()(
           bookId,
           bookTitle,
           requestedDate: todayISO(),
+          requestedAt: now,
+          requestedTime: formatTime(now),
           status: 'Pending',
         };
         set((state) => ({ requests: [req, ...state.requests] }));

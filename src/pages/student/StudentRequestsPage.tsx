@@ -39,7 +39,11 @@ export function StudentRequestsPage() {
   const myRequests = useMemo(
     () =>
       member
-        ? [...allRequests].filter((r) => r.memberId === member.memberId).sort((a, b) => (a.requestedDate < b.requestedDate ? 1 : -1))
+        ? [...allRequests].filter((r) => r.memberId === member.memberId).sort((a, b) => {
+            const timeA = a.requestedAt || `${a.requestedDate}T00:00:00`;
+            const timeB = b.requestedAt || `${b.requestedDate}T00:00:00`;
+            return timeB.localeCompare(timeA);
+          })
         : [],
     [allRequests, member],
   );
@@ -71,7 +75,7 @@ export function StudentRequestsPage() {
               <div>
                 <p className="font-medium text-ink">{r.bookTitle}</p>
                 <p className="text-xs text-secondary-500">
-                  Requested {formatDate(r.requestedDate)} · {STATUS_NOTE[r.status]?.(r)}
+                  Requested {formatDate(r.requestedDate)}{r.requestedTime ? ` at ${r.requestedTime}` : ''} · {STATUS_NOTE[r.status]?.(r)}
                 </p>
               </div>
               <div className="flex items-center gap-2">

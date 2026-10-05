@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable } from '@/components/tables/DataTable';
@@ -22,13 +22,19 @@ export function RequestsPage() {
   const books = useBooksStore((s) => s.books);
   const confirm = useConfirm();
 
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+
   const rows: RequestRow[] = useMemo(() => {
     const memberName = (id: string) => members.find((m) => m.memberId === id)?.name ?? id;
     const shelfOf = (accession: string) => books.find((b) => b.accessionNumber === accession)?.shelfLocation;
     return [...requests]
-      .sort((a, b) => (a.requestedDate < b.requestedDate ? 1 : -1))
+      .sort((a, b) => {
+        const timeA = a.requestedAt || `${a.requestedDate}T00:00:00`;
+        const timeB = b.requestedAt || `${b.requestedDate}T00:00:00`;
+        return sortOrder === 'newest' ? timeB.localeCompare(timeA) : timeA.localeCompare(timeB);
+      })
       .map((r) => ({ ...r, memberName: memberName(r.memberId), shelfLocation: shelfOf(r.accessionNumber) }));
-  }, [requests, members, books]);
+  }, [requests, members, books, sortOrder]);
 
   function handleApprove(request: RequestRow) {
     const result = approve(request.id);
@@ -69,6 +75,17 @@ export function RequestsPage() {
         data={rows}
         columns={columns}
         searchPlaceholder="Search by member or book title..."
+        toolbarActions={
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value as 'newest' | 'oldest')}
+            aria-label="Sort requests by time"
+            className="rounded-lg border border-secondary-200 px-3 py-2 text-sm focus:border-primary-400 focus:outline-none"
+          >
+            <option value="newest">Sort: Newest First (Recent)</option>
+            <option value="oldest">Sort: Oldest First (Queue / FIFO)</option>
+          </select>
+        }
         emptyState={{ title: 'No requests', description: 'No students currently have open book requests.' }}
       />
     </div>

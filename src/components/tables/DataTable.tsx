@@ -27,6 +27,8 @@ interface DataTableProps<T> {
   pageSize?: number;
   toolbarActions?: ReactNode;
   initialSearch?: string;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
 }
 
 export function DataTable<T>({
@@ -39,10 +41,20 @@ export function DataTable<T>({
   pageSize = 10,
   toolbarActions,
   initialSearch = '',
+  searchValue,
+  onSearchChange,
 }: DataTableProps<T>) {
-  const [globalFilterInput, setGlobalFilterInput] = useState(initialSearch);
-  const globalFilter = useDebounce(globalFilterInput, 250);
+  const [internalSearch, setInternalSearch] = useState(initialSearch);
+  const searchInput = searchValue !== undefined ? searchValue : internalSearch;
+  const globalFilter = useDebounce(searchInput, 250);
   const [sorting, setSorting] = useState<SortingState>([]);
+
+  const handleSearchChange = (value: string) => {
+    if (searchValue === undefined) {
+      setInternalSearch(value);
+    }
+    onSearchChange?.(value);
+  };
 
   const table = useReactTable({
     data,
@@ -54,14 +66,25 @@ export function DataTable<T>({
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: { pagination: { pageSize } },
+    globalFilterFn: (row, _columnId, filterValue) => {
+      const q = String(filterValue).toLowerCase().trim();
+      if (!q) return true;
+      const rowData = row.original as Record<string, unknown>;
+      return Object.values(rowData).some((val) => {
+        if (typeof val === 'string' || typeof val === 'number') {
+          return String(val).toLowerCase().includes(q);
+        }
+        return false;
+      });
+    },
   });
 
   return (
     <div className="rounded-xl border border-secondary-100 bg-white shadow-sm">
       <div className="flex flex-col gap-3 border-b border-secondary-100 p-4 sm:flex-row sm:items-center sm:justify-between">
         <SearchInput
-          value={globalFilterInput}
-          onChange={setGlobalFilterInput}
+          value={searchInput}
+          onChange={handleSearchChange}
           placeholder={searchPlaceholder}
           containerClassName="w-full sm:max-w-xs"
         />

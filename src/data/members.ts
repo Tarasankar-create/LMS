@@ -30,7 +30,7 @@ function buildGeneratedMembers(count: number): Member[] {
     memberId: 'MEM-1001',
     name: 'Ankit Rout',
     rollNumber: '2026001',
-    department: 'B.Sc. Physics',
+    department: 'Science',
     academicYear: '2nd Year',
     email: 'ankit.rout@pscollege.ac.in',
     phone: '9437100001',

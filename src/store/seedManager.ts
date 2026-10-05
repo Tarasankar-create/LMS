@@ -1,4 +1,5 @@
 import { seedDemoData } from '@/data/bootstrap';
+import { normalizeDepartment } from '@/constants/departments';
 import { useBooksStore } from './booksStore';
 import { useMembersStore } from './membersStore';
 import { useLoansStore } from './loansStore';
@@ -7,10 +8,30 @@ import { useReservationsStore } from './reservationsStore';
 import { useCopiesStore } from './copiesStore';
 import { useRequestsStore } from './requestsStore';
 
-const SEEDED_FLAG_KEY = 'psc-lms-seeded-v2';
+const SEEDED_FLAG_KEY = 'psc-lms-seeded-v3';
 
 /** Populates every domain store from the generated demo dataset, once. */
 export function ensureDemoDataSeeded(): void {
+  // Auto-migrate any existing cached members whose department still has old B.Sc. / B.A. / B.Com format
+  const existingMembers = useMembersStore.getState().members;
+  if (existingMembers.length > 0) {
+    const hasOldFormat = existingMembers.some(
+      (m) =>
+        m.department.startsWith('B.Sc.') ||
+        m.department.startsWith('B.A.') ||
+        m.department === 'B.Com' ||
+        !['Science', 'Commerce', 'Arts'].includes(m.department),
+    );
+    if (hasOldFormat) {
+      useMembersStore.getState().setMembers(
+        existingMembers.map((m) => ({
+          ...m,
+          department: normalizeDepartment(m.department),
+        })),
+      );
+    }
+  }
+
   if (localStorage.getItem(SEEDED_FLAG_KEY) === 'true') return;
 
   const data = seedDemoData();

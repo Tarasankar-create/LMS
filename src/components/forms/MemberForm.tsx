@@ -1,7 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { memberSchema, type MemberFormValues } from '@/utils/validators/memberSchema';
-import { DEPARTMENTS, ACADEMIC_YEARS } from '@/constants/departments';
+import { DEPARTMENTS } from '@/constants/departments';
 import { Button } from '@/components/common/Button';
 import type { Member } from '@/types';
 
@@ -23,8 +23,7 @@ export function MemberForm({ initialValues, existingMember, onSubmit, onCancel }
       name: '',
       rollNumber: '',
       department: DEPARTMENTS[0],
-      academicYear: ACADEMIC_YEARS[0],
-      email: '',
+            email: '',
       phone: '',
       status: 'Active',
       ...initialValues,
@@ -77,19 +76,17 @@ export function MemberForm({ initialValues, existingMember, onSubmit, onCancel }
           </select>
         </div>
         <div>
-          <label htmlFor="member-year" className="mb-1 block text-sm font-medium text-secondary-700">
-            Academic Year
+          <label htmlFor="member-status" className="mb-1 block text-sm font-medium text-secondary-700">
+            Membership Status
           </label>
           <select
-            id="member-year"
-            {...register('academicYear')}
+            id="member-status"
+            {...register('status')}
             className="w-full rounded-lg border border-secondary-200 px-3 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
           >
-            {ACADEMIC_YEARS.map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+            <option value="Suspended">Suspended</option>
           </select>
         </div>
       </div>
@@ -118,21 +115,6 @@ export function MemberForm({ initialValues, existingMember, onSubmit, onCancel }
           />
           {errors.phone && <p className="mt-1 text-xs text-danger-600">{errors.phone.message}</p>}
         </div>
-      </div>
-
-      <div>
-        <label htmlFor="member-status" className="mb-1 block text-sm font-medium text-secondary-700">
-          Membership Status
-        </label>
-        <select
-          id="member-status"
-          {...register('status')}
-          className="w-full rounded-lg border border-secondary-200 px-3 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
-        >
-          <option value="Active">Active</option>
-          <option value="Inactive">Inactive</option>
-          <option value="Suspended">Suspended</option>
-        </select>
       </div>
 
       <div className="flex justify-end gap-2 pt-2">

@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import type { ColumnDef } from '@tanstack/react-table';
+import { BookOpen, Search } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
@@ -10,20 +11,34 @@ import { useBooksStore } from '@/store/booksStore';
 import { useReservationsStore } from '@/store/reservationsStore';
 import { useRequestsStore } from '@/store/requestsStore';
 import { useCurrentMember } from '@/hooks/useCurrentMember';
+import { isBookInDepartment } from '@/utils/departmentBooks';
 import type { Book } from '@/types';
 
 export function StudentCataloguePage() {
   const [searchParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') ?? '');
+
   const books = useBooksStore((s) => s.books);
   const reservations = useReservationsStore((s) => s.reservations);
   const reserve = useReservationsStore((s) => s.reserve);
   const requests = useRequestsStore((s) => s.requests);
-    const requestBook = useRequestsStore((s) => s.request);
+  const requestBook = useRequestsStore((s) => s.request);
   const isAtLoanLimit = useRequestsStore((s) => s.isAtLoanLimit);
   const member = useCurrentMember();
   const atLoanLimit = member ? isAtLoanLimit(member.memberId) : false;
 
-  const visibleBooks = useMemo(() => books.filter((b) => b.status !== 'Retired'), [books]);
+  const studentDepartment = member?.department;
+  const isSearching = searchQuery.trim().length > 0;
+
+  // By default, show books from the student's department.
+  // When searching, show all non-retired books so other department books can be searched.
+  const visibleBooks = useMemo(() => {
+    const nonRetired = books.filter((b) => b.status !== 'Retired');
+    if (!isSearching && studentDepartment) {
+      return nonRetired.filter((b) => isBookInDepartment(b, studentDepartment));
+    }
+    return nonRetired;
+  }, [books, isSearching, studentDepartment]);
 
   function alreadyReserved(book: Book) {
     if (!member) return false;
@@ -66,7 +81,12 @@ export function StudentCataloguePage() {
     () => [
       { accessorKey: 'title', header: 'Title' },
       { accessorKey: 'author', header: 'Author' },
-      { accessorKey: 'category', header: 'Subject' },
+      { accessorKey: 'category', header: 'Category' },
+      {
+        accessorKey: 'department',
+        header: 'Department',
+        cell: ({ row }) => row.original.department || row.original.category || '-',
+      },
       { accessorKey: 'shelfLocation', header: 'Shelf' },
       {
         id: 'availability',
@@ -113,12 +133,53 @@ export function StudentCataloguePage() {
   return (
     <div>
       <PageHeader title="Library Catalogue" description="Search the collection and check live availability." />
+
+      {studentDepartment && !isSearching && (
+        <div className="mb-4 flex flex-col gap-1 rounded-xl border border-primary-100 bg-primary-50/60 p-3.5 text-sm text-primary-950 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <BookOpen className="size-4 shrink-0 text-primary-600" />
+            <span>
+              Showing books for <strong>{studentDepartment}</strong> Department.
+            </span>
+          </div>
+          <span className="text-xs text-primary-700">
+            Need books from another department? Type in the search bar to find them.
+          </span>
+        </div>
+      )}
+
+      {isSearching && (
+        <div className="mb-4 flex items-center justify-between rounded-xl border border-secondary-200 bg-secondary-50/70 p-3 text-sm text-secondary-800">
+          <div className="flex items-center gap-2">
+            <Search className="size-4 text-secondary-500" />
+            <span>
+              Searching across <strong>all departments</strong> for &ldquo;{searchQuery}&rdquo;.
+            </span>
+          </div>
+          {studentDepartment && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="text-xs font-medium text-primary-600 hover:text-primary-700 hover:underline"
+            >
+              Reset to {studentDepartment} books
+            </button>
+          )}
+        </div>
+      )}
+
       <DataTable
         data={visibleBooks}
         columns={columns}
-        searchPlaceholder="Search by title, author, or subject..."
-        initialSearch={searchParams.get('q') ?? ''}
-        emptyState={{ title: 'No books found' }}
+        searchPlaceholder="Search by title, author, department, or subject..."
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        emptyState={{
+          title: 'No books found',
+          description: isSearching
+            ? 'Try adjusting your search terms to find books across all departments.'
+            : `No books currently found for ${studentDepartment ?? 'your'} department. Use search to view other departments.`,
+        }}
       />
     </div>
   );

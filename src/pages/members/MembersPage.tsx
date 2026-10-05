@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Plus } from 'lucide-react';
+import { Plus, FileSpreadsheet } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Button } from '@/components/common/Button';
 import { DataTable } from '@/components/tables/DataTable';
 import { createMemberColumns, type MemberRow } from '@/components/tables/columns/memberColumns';
 import { MemberFormModal } from '@/components/modals/MemberFormModal';
+import { MemberBulkImportModal } from '@/components/modals/MemberBulkImportModal';
 import { useCan } from '@/access/useCan';
 import { useMembersStore } from '@/store/membersStore';
 import { useLoansStore } from '@/store/loansStore';
@@ -28,6 +29,7 @@ export function MembersPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | undefined>(undefined);
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [departmentFilter, setDepartmentFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState<'All' | MemberStatus>('All');
 
@@ -93,9 +95,14 @@ export function MembersPage() {
         description={`${members.length} members shown below.`}
         actions={
           canCreate && (
-            <Button onClick={openAddForm}>
-              <Plus className="size-4" /> Add Member
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setBulkImportOpen(true)}>
+                <FileSpreadsheet className="size-4" /> Bulk Upload (Excel/CSV)
+              </Button>
+              <Button onClick={openAddForm}>
+                <Plus className="size-4" /> Add Member
+              </Button>
+            </div>
           )
         }
       />
@@ -145,6 +152,11 @@ export function MembersPage() {
         onClose={() => setFormOpen(false)}
         onSubmit={handleFormSubmit}
         existingMember={editingMember}
+      />
+
+      <MemberBulkImportModal
+        isOpen={bulkImportOpen}
+        onClose={() => setBulkImportOpen(false)}
       />
     </div>
   );

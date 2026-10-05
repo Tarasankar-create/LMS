@@ -1,7 +1,38 @@
-import { BOOK_CATEGORIES, type Book, type BookCategory } from '@/types';
+import { BOOK_CATEGORIES, type Book, type BookCategory, type BookDepartment } from '@/types';
 import { CATEGORY_SHELF_PREFIX } from '@/constants/categories';
 import { SEED_COUNTS } from './seedConfig';
 import { createSeededRandom, pickFrom, randomInt } from './seededRandom';
+
+/**
+ * Maps book title / category / subject to canonical BookDepartment.
+ */
+export function resolveBookDepartment(title: string, category?: string, subject?: string): BookDepartment {
+  const t = title.toLowerCase();
+  const s = (subject ?? '').toLowerCase();
+
+  if (t.includes('physics') || t.includes('electronics') || s.includes('physics')) return 'Physics';
+  if (t.includes('chemistry') || s.includes('chemistry')) return 'Chemistry';
+  if (t.includes('polity') || t.includes('political') || t.includes('public administration') || s.includes('polity')) return 'Political Science';
+  if (t.includes('math') || t.includes('calculus') || t.includes('algebra') || t.includes('geometry') || t.includes('statistics')) return 'Mathematics';
+  if (t.includes('botan') || t.includes('environmental')) return 'Botany';
+  if (t.includes('zool') || t.includes('animal') || t.includes('cell biology') || t.includes('genetics')) return 'Zoology';
+  if (t.includes('history') || t.includes('struggle') || t.includes('heritage')) return 'History';
+  if (t.includes('econom') || t.includes('yojana')) return 'Economics';
+  if (t.includes('odia') || t.includes('prativa') || t.includes('jhankar')) return 'Odia';
+  if (t.includes('english') || t.includes('communication')) return 'English';
+  if (t.includes('account') || t.includes('tax') || t.includes('marketing') || t.includes('audit') || t.includes('commerce') || t.includes('company law') || t.includes('financial')) return 'Commerce';
+  if (t.includes('computer') || t.includes('e-commerce')) return 'Computer Science';
+  if (t.includes('education') || t.includes('university') || t.includes('psychology')) return 'Education';
+  if (t.includes('philosophy')) return 'Philosophy';
+  if (t.includes('sanskrit')) return 'Sanskrit';
+  if (t.includes('sociology') || t.includes('kurukshetra')) return 'Sociology';
+
+  if (category === 'Science') return 'Physics';
+  if (category === 'Commerce') return 'Commerce';
+  if (category === 'Arts') return 'History';
+
+  return 'Others';
+}
 
 /**
  * totalCopies only — availableCopies/status are computed by reconcileBookAvailability()
@@ -17,6 +48,8 @@ const FIXED_BOOKS: Omit<Book, 'availableCopies' | 'status'>[] = [
     title: 'Indian Polity',
     author: 'M. Laxmikanth',
     subject: 'Political Science',
+    department: 'Political Science',
+    dateOfPurchase: '2023-06-12',
     classification: 'Stream - Arts',
     category: 'Arts',
     isbn: '978-93-5260-363-3',
@@ -34,6 +67,8 @@ const FIXED_BOOKS: Omit<Book, 'availableCopies' | 'status'>[] = [
     title: 'Introduction to Physics',
     author: 'H.C. Verma',
     subject: 'Physics',
+    department: 'Physics',
+    dateOfPurchase: '2023-06-12',
     classification: 'Stream - Science',
     category: 'Science',
     isbn: '978-81-7709-187-1',
@@ -51,6 +86,8 @@ const FIXED_BOOKS: Omit<Book, 'availableCopies' | 'status'>[] = [
     title: 'Odia Literature',
     author: 'Fakir Mohan Senapati',
     subject: 'Odia',
+    department: 'Odia',
+    dateOfPurchase: '2023-06-12',
     classification: 'Course',
     category: 'Arts',
     publisher: 'Grantha Mandir',
@@ -67,6 +104,8 @@ const FIXED_BOOKS: Omit<Book, 'availableCopies' | 'status'>[] = [
     title: 'Computer Fundamentals',
     author: 'P.K. Sinha',
     subject: 'Computer Science',
+    department: 'Computer Science',
+    dateOfPurchase: '2023-06-12',
     classification: 'Course',
     category: 'Commerce',
     publisher: 'BPB Publications',
@@ -173,12 +212,16 @@ function buildGeneratedBooks(count: number): Omit<Book, 'availableCopies' | 'sta
             ? 'Commerce & Computing'
             : 'Periodicals & Publications';
 
+    const department = resolveBookDepartment(title, category, subject);
+
     books.push({
       id: `book_${accessionNumber.toLowerCase()}`,
       accessionNumber,
       title,
       author: pickFrom(rng, AUTHORS),
       subject,
+      department,
+      dateOfPurchase: '2023-07-01',
       classification,
       category,
       publisher: 'Odisha State Bureau of Textbooks',
@@ -219,3 +262,4 @@ export function reconcileBookAvailability(books: Book[], issuedCountByAccession:
     };
   });
 }
+

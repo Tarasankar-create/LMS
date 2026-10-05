@@ -46,3 +46,10 @@ export function formatDateTime(dateTimeISO?: string): string {
   if (!isValid(parsed)) return '-';
   return format(parsed, 'dd MMM yyyy, hh:mm a');
 }
+
+export function formatTime(dateTimeISO?: string): string {
+  if (!dateTimeISO) return '';
+  const parsed = parseISO(dateTimeISO);
+  if (!isValid(parsed)) return '';
+  return format(parsed, 'hh:mm a');
+}

@@ -1,4 +1,4 @@
-export const BOOK_CATEGORIES = ['Science', 'Commerce', 'Arts', 'Journals and Magazines'] as const;
+export const BOOK_CATEGORIES = ['Arts', 'Science', 'Commerce', 'Journals and Magazines'] as const;
 export type BookCategory = (typeof BOOK_CATEGORIES)[number];
 
 export const BOOK_CLASSIFICATIONS = [
@@ -35,3 +35,4 @@ export interface Book {
   acquisitionSource?: string;
   addedDate: string;
 }
+

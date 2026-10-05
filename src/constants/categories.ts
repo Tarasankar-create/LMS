@@ -13,3 +13,4 @@ export const CATEGORY_CHART_COLORS: Record<BookCategory, string> = {
   Arts: '#1e3a5f',
   'Journals and Magazines': '#6366f1',
 };
+

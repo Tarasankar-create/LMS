@@ -25,7 +25,7 @@ export function BookForm({ initialValues, existingBook, onSubmit, onCancel }: Bo
       accessionNumber: '',
       title: '',
       author: '',
-      category: 'Science',
+      category: 'Arts',
       isbn: '',
       publisher: '',
       edition: '',

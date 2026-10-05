@@ -117,6 +117,20 @@ export function BookDetailsPage() {
               </dd>
             </div>
             <div>
+              <dt className="text-secondary-500">Department</dt>
+              <dd className="font-medium text-ink">{book.department ?? '-'}</dd>
+            </div>
+            <div>
+              <dt className="text-secondary-500">Price</dt>
+              <dd className="font-medium text-ink">{book.price ? `₹${book.price}` : '-'}</dd>
+            </div>
+            <div>
+              <dt className="text-secondary-500">Date of Purchase</dt>
+              <dd className="font-medium text-ink">
+                {book.dateOfPurchase ? formatDate(book.dateOfPurchase) : book.acquisitionDate ? formatDate(book.acquisitionDate) : '-'}
+              </dd>
+            </div>
+            <div>
               <dt className="text-secondary-500">Added On</dt>
               <dd className="font-medium text-ink">{formatDate(book.addedDate)}</dd>
             </div>

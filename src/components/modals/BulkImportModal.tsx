@@ -198,7 +198,6 @@ export function BulkImportModal({ isOpen, onClose }: BulkImportModalProps) {
             : classification === 'Journals'
               ? 'Journals and Magazines'
               : 'Commerce',
-        subject,
         classification,
         publisher: rawPub?.trim() || undefined,
         edition: rawEd?.trim() || undefined,
@@ -314,8 +313,8 @@ export function BulkImportModal({ isOpen, onClose }: BulkImportModalProps) {
               </div>
               <div
                 className={`rounded-lg border p-4 ${importStats.failed > 0
-                    ? 'border-danger-200 bg-danger-50 text-danger-800'
-                    : 'border-secondary-200 bg-secondary-50 text-secondary-600'
+                  ? 'border-danger-200 bg-danger-50 text-danger-800'
+                  : 'border-secondary-200 bg-secondary-50 text-secondary-600'
                   }`}
               >
                 <div className="flex items-center gap-2">

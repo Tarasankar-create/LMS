@@ -2,7 +2,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Check, ScanLine, X } from 'lucide-react';
 import { bookSchema, type BookFormValues } from '@/utils/validators/bookSchema';
-import { BOOK_CATEGORIES, type Book } from '@/types';
+import { BOOK_CATEGORIES, BOOK_DEPARTMENTS, type Book } from '@/types';
 import { Button } from '@/components/common/Button';
 import { validateIsbn } from '@/utils/barcode';
 
@@ -26,6 +26,9 @@ export function BookForm({ initialValues, existingBook, onSubmit, onCancel }: Bo
       title: '',
       author: '',
       category: 'Arts',
+      department: '',
+      dateOfPurchase: '',
+      price: undefined,
       isbn: '',
       publisher: '',
       edition: '',
@@ -97,15 +100,71 @@ export function BookForm({ initialValues, existingBook, onSubmit, onCancel }: Bo
           {errors.author && <p className="mt-1 text-xs text-danger-600">{errors.author.message}</p>}
         </div>
         <div>
+          <label htmlFor="book-department" className="mb-1 block text-sm font-medium text-secondary-700">
+            Department
+          </label>
+          <select
+            id="book-department"
+            {...register('department')}
+            className="w-full rounded-lg border border-secondary-200 px-3 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100 bg-white"
+          >
+            <option value="">Select Department (optional)</option>
+            {BOOK_DEPARTMENTS.map((dept) => (
+              <option key={dept} value={dept}>
+                {dept}
+              </option>
+            ))}
+          </select>
+          {errors.department && <p className="mt-1 text-xs text-danger-600">{errors.department.message}</p>}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div>
+          <label htmlFor="book-purchase-date" className="mb-1 block text-sm font-medium text-secondary-700">
+            Date of Purchase
+          </label>
+          <input
+            id="book-purchase-date"
+            type="date"
+            {...register('dateOfPurchase')}
+            className="w-full rounded-lg border border-secondary-200 px-3 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
+          />
+          {errors.dateOfPurchase && <p className="mt-1 text-xs text-danger-600">{errors.dateOfPurchase.message}</p>}
+        </div>
+
+        <div>
+          <label htmlFor="book-price" className="mb-1 block text-sm font-medium text-secondary-700">
+            Price (₹)
+          </label>
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-secondary-500 font-semibold text-sm">
+              ₹
+            </span>
+            <input
+              id="book-price"
+              type="number"
+              step="any"
+              min="0"
+              {...register('price', {
+                setValueAs: (v) => (v === '' || v === null || Number.isNaN(Number(v)) ? undefined : Number(v)),
+              })}
+              className="w-full rounded-lg border border-secondary-200 py-2 pl-7 pr-3 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
+            />
+          </div>
+          {errors.price && <p className="mt-1 text-xs text-danger-600">{errors.price.message}</p>}
+        </div>
+
+        <div>
           <label htmlFor="book-isbn" className="mb-1 block text-sm font-medium text-secondary-700">
-            ISBN (optional) — scan the barcode on the back cover
+            ISBN (optional)
           </label>
           <div className="relative">
             <ScanLine className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-secondary-400" />
             <input
               id="book-isbn"
               {...register('isbn')}
-              placeholder="Scan or type the ISBN"
+              placeholder="Scan or type ISBN"
               className="w-full rounded-lg border border-secondary-200 py-2 pl-9 pr-9 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
             />
             {isbnValue.trim() && (
@@ -120,7 +179,7 @@ export function BookForm({ initialValues, existingBook, onSubmit, onCancel }: Bo
           </div>
           {isbnValue.trim() && !isbnCheck && (
             <p className="mt-1 text-xs text-danger-600">
-              That doesn't check out as a valid ISBN-10/13 — double-check the scan, or leave it blank.
+              Invalid ISBN-10/13 checksum.
             </p>
           )}
         </div>

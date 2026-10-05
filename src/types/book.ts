@@ -1,6 +1,27 @@
 export const BOOK_CATEGORIES = ['Arts', 'Science', 'Commerce', 'Journals and Magazines'] as const;
 export type BookCategory = (typeof BOOK_CATEGORIES)[number];
 
+export const BOOK_DEPARTMENTS = [
+  'Physics',
+  'Chemistry',
+  'Political Science',
+  'Mathematics',
+  'Botany',
+  'Zoology',
+  'History',
+  'Economics',
+  'Odia',
+  'English',
+  'Commerce',
+  'Computer Science',
+  'Education',
+  'Philosophy',
+  'Sanskrit',
+  'Sociology',
+  'General',
+] as const;
+export type BookDepartment = (typeof BOOK_DEPARTMENTS)[number];
+
 export const BOOK_CLASSIFICATIONS = [
   'Course',
   'Stream - Arts',
@@ -20,8 +41,10 @@ export interface Book {
   author: string;
   category: BookCategory;
   classification: BookClassification;
-  subject?: string;
+  department?: string;
+  dateOfPurchase?: string;
   price?: number;
+  subject?: string;
   isbn?: string;
   publisher?: string;
   edition?: string;
@@ -35,4 +58,3 @@ export interface Book {
   acquisitionSource?: string;
   addedDate: string;
 }
-

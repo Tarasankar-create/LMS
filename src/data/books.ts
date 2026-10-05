@@ -52,7 +52,7 @@ const FIXED_BOOKS: Omit<Book, 'availableCopies' | 'status'>[] = [
     author: 'Fakir Mohan Senapati',
     subject: 'Odia',
     classification: 'Course',
-    category: 'Literature',
+    category: 'Arts',
     publisher: 'Grantha Mandir',
     edition: '2nd',
     price: 220,
@@ -122,27 +122,19 @@ const TITLES_BY_CATEGORY: Record<BookCategory, string[]> = {
     'Auditing Principles',
     'Company Law',
   ],
-  Literature: [
-    'Odia Short Stories Anthology',
-    'English Literature: The Victorian Age',
-    'A Study of Indian Poetry',
-    'Modern Odia Poetry',
-    'Sanskrit Grammar and Composition',
-    'Comparative Literature Studies',
-    'The Art of the Novel',
-    'Hindi Sahitya ka Itihas',
-    'Folk Tales of Odisha',
-    'Introduction to Linguistics',
-  ],
-  Reference: [
-    'Encyclopedia of General Knowledge',
-    "Oxford English Dictionary",
-    'Atlas of the World',
-    "Who's Who in Indian History",
-    'Manual of Indian Constitution',
-    'Scientific and Technical Terms Dictionary',
-    'Directory of Indian Universities',
-    'Almanac of Current Affairs',
+  'Journals and Magazines': [
+    'Indian Journal of History of Science',
+    'Odisha Historical Research Journal',
+    'Economic & Political Weekly',
+    'Current Science Journal',
+    'Yojana (Odisha Edition)',
+    'Kurukshetra Development Journal',
+    'The Indian Economic Journal',
+    'Prativa Literary Journal',
+    'Jhankar Odia Magazine',
+    'University News Journal',
+    'Journal of Educational Planning',
+    'Down to Earth Magazine',
   ],
 };
 
@@ -161,7 +153,7 @@ function buildGeneratedBooks(count: number): Omit<Book, 'availableCopies' | 'sta
     const titles = TITLES_BY_CATEGORY[category];
     const title = titles[i % titles.length];
     const totalCopies = randomInt(rng, 2, 8);
-    const isReference = category === 'Reference' && rng() > 0.4;
+    const isReference = category === 'Journals and Magazines' && rng() > 0.4;
 
     accessionCounter += 1;
     const accessionNumber = `PSC-${String(accessionCounter).padStart(4, '0')}`;
@@ -169,7 +161,7 @@ function buildGeneratedBooks(count: number): Omit<Book, 'availableCopies' | 'sta
     let classification: import('@/types').BookClassification = 'Course';
     if (category === 'Arts') classification = 'Stream - Arts';
     else if (category === 'Science') classification = 'Stream - Science';
-    else if (category === 'Reference') classification = i % 2 === 0 ? 'Journals' : 'Current Affairs';
+    else if (category === 'Journals and Magazines') classification = 'Journals';
     else if (i % 5 === 0) classification = 'Others';
 
     const subject =
@@ -179,9 +171,7 @@ function buildGeneratedBooks(count: number): Omit<Book, 'availableCopies' | 'sta
           ? 'Natural Sciences'
           : category === 'Commerce'
             ? 'Commerce & Computing'
-            : category === 'Literature'
-              ? 'Language & Literature'
-              : 'General Reference';
+            : 'Periodicals & Publications';
 
     books.push({
       id: `book_${accessionNumber.toLowerCase()}`,

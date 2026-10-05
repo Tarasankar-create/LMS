@@ -40,8 +40,8 @@ import { StudentMyBooksPage } from '@/pages/student/StudentMyBooksPage';
 import { StudentRequestsPage } from '@/pages/student/StudentRequestsPage';
 import { StudentFinesPage } from '@/pages/student/StudentFinesPage';
 import { StudentNoticesPage } from '@/pages/student/StudentNoticesPage';
-import { EBooksManagementPage } from '@/pages/ebooks/EBooksManagementPage';
-import { StudentEBooksPage } from '@/pages/student/StudentEBooksPage';
+import { JournalsManagementPage } from '@/pages/journals/JournalsManagementPage';
+import { StudentJournalsPage } from '@/pages/student/StudentJournalsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 function RoleHome() {
@@ -88,7 +88,7 @@ export function AppRoutes() {
         <Route path={lmsRelative(ROUTES.fines)} element={guard('fines', 'view', <FinesPage />)} />
         <Route path={`${lmsRelative(ROUTES.fines)}/:id`} element={guard('fines', 'view', <FineDetailsPage />)} />
         <Route path={lmsRelative(ROUTES.reports)} element={guard('reports', 'view', <ReportsPage />)} />
-        <Route path={lmsRelative(ROUTES.journals)} element={guard('books', 'view', <EBooksManagementPage />)} />
+        <Route path={lmsRelative(ROUTES.journals)} element={guard('books', 'view', <JournalsManagementPage />)} />
         <Route path="ebooks" element={<Navigate to={ROUTES.journals} replace />} />
         <Route path={lmsRelative(ROUTES.notices)} element={guard('notices', 'view', <NoticesPage />)} />
         <Route path={lmsRelative(ROUTES.profile)} element={<ProfilePage />} />
@@ -112,7 +112,7 @@ export function AppRoutes() {
       >
         <Route path={lmsRelative(ROUTES.studentDashboard)} element={<StudentDashboardPage />} />
         <Route path={lmsRelative(ROUTES.studentCatalogue)} element={<StudentCataloguePage />} />
-        <Route path={lmsRelative(ROUTES.studentJournals)} element={<StudentEBooksPage />} />
+        <Route path={lmsRelative(ROUTES.studentJournals)} element={<StudentJournalsPage />} />
         <Route path="student/ebooks" element={<Navigate to={ROUTES.studentJournals} replace />} />
         <Route path={lmsRelative(ROUTES.studentMyBooks)} element={<StudentMyBooksPage />} />
         <Route path={lmsRelative(ROUTES.studentRequests)} element={<StudentRequestsPage />} />
@@ -125,3 +125,4 @@ export function AppRoutes() {
     </Routes>
   );
 }
+

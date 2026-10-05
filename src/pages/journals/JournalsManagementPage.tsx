@@ -4,23 +4,23 @@ import { Plus, Download, Trash2, Eye, EyeOff, BookOpen } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Button } from '@/components/common/Button';
 import { Badge } from '@/components/common/Badge';
-import { EBookUploadModal } from '@/components/modals/EBookUploadModal';
-import { useEBooksStore } from '@/store/ebooksStore';
+import { JournalUploadModal } from '@/components/modals/JournalUploadModal';
+import { useJournalsStore } from '@/store/journalsStore';
 import { useConfirm } from '@/components/common/ConfirmDialogProvider';
-import { BOOK_CLASSIFICATIONS, type EBook } from '@/types';
+import { BOOK_CLASSIFICATIONS, type Journal } from '@/types';
 
-export function EBooksManagementPage() {
+export function JournalsManagementPage() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [selectedClassification, setSelectedClassification] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const ebooks = useEBooksStore((s) => s.ebooks);
-  const togglePublishStatus = useEBooksStore((s) => s.togglePublishStatus);
-  const deleteEBook = useEBooksStore((s) => s.deleteEBook);
+  const journals = useJournalsStore((s) => s.journals);
+  const togglePublishStatus = useJournalsStore((s) => s.togglePublishStatus);
+  const deleteJournal = useJournalsStore((s) => s.deleteJournal);
   const confirm = useConfirm();
 
-  const filteredEBooks = useMemo(() => {
-    return ebooks
+  const filteredJournals = useMemo(() => {
+    return journals
       .filter((b) => selectedClassification === 'All' || b.classification === selectedClassification)
       .filter((b) => {
         if (!searchQuery.trim()) return true;
@@ -31,40 +31,40 @@ export function EBooksManagementPage() {
           b.classification.toLowerCase().includes(q)
         );
       });
-  }, [ebooks, selectedClassification, searchQuery]);
+  }, [journals, selectedClassification, searchQuery]);
 
-  async function handleDelete(ebook: EBook) {
+  async function handleDelete(journal: Journal) {
     const ok = await confirm({
       title: 'Delete Journal?',
-      description: `Are you sure you want to permanently delete "${ebook.title}"?`,
+      description: `Are you sure you want to permanently delete "${journal.title}"?`,
       confirmLabel: 'Delete',
       tone: 'danger',
     });
     if (ok) {
-      deleteEBook(ebook.id);
+      deleteJournal(journal.id);
       toast.success('Journal deleted.');
     }
   }
 
-  function handleTogglePublish(ebook: EBook) {
-    togglePublishStatus(ebook.id);
-    const willBePublished = ebook.publishStatus !== 'Published';
+  function handleTogglePublish(journal: Journal) {
+    togglePublishStatus(journal.id);
+    const willBePublished = journal.publishStatus !== 'Published';
     toast.success(
       willBePublished
-        ? `"${ebook.title}" published! Now accessible to all students.`
-        : `"${ebook.title}" unpublished and moved back to Draft.`
+        ? `"${journal.title}" published! Now accessible to all students.`
+        : `"${journal.title}" unpublished and moved back to Draft.`
     );
   }
 
-  function handleViewDownload(ebook: EBook) {
-    window.open(ebook.fileReference, '_blank');
+  function handleViewDownload(journal: Journal) {
+    window.open(journal.fileReference, '_blank');
   }
 
   return (
     <div>
       <PageHeader
         title="Journals"
-        description="Upload and publish electronic syllabus materials, lecture notes, and e-books for student access (FR-ELIB-01)."
+        description="Upload and publish electronic syllabus materials, lecture notes, and journals for student access (FR-ELIB-01)."
         actions={
           <Button onClick={() => setUploadOpen(true)}>
             <Plus className="mr-1.5 size-4" /> Upload Journal
@@ -114,48 +114,48 @@ export function EBooksManagementPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-secondary-100">
-              {filteredEBooks.length === 0 ? (
+              {filteredJournals.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-sm text-secondary-500">
                     No journals found matching criteria.
                   </td>
                 </tr>
               ) : (
-                filteredEBooks.map((ebook) => (
-                  <tr key={ebook.id} className="hover:bg-secondary-50/40 transition-colors">
+                filteredJournals.map((journal) => (
+                  <tr key={journal.id} className="hover:bg-secondary-50/40 transition-colors">
                     <td className="px-4 py-3.5">
                       <div className="flex items-start gap-3">
                         <BookOpen className="size-5 text-primary-600 mt-0.5 shrink-0" />
                         <div>
-                          <p className="font-semibold text-ink">{ebook.title}</p>
-                          <p className="text-xs text-secondary-500">{ebook.author}</p>
-                          {ebook.description && (
-                            <p className="mt-1 text-xs text-secondary-600 line-clamp-1">{ebook.description}</p>
+                          <p className="font-semibold text-ink">{journal.title}</p>
+                          <p className="text-xs text-secondary-500">{journal.author}</p>
+                          {journal.description && (
+                            <p className="mt-1 text-xs text-secondary-600 line-clamp-1">{journal.description}</p>
                           )}
                         </div>
                       </div>
                     </td>
                     <td className="px-4 py-3.5">
                       <span className="inline-flex rounded bg-secondary-100 px-2 py-0.5 text-xs font-medium text-secondary-800">
-                        {ebook.classification}
+                        {journal.classification}
                       </span>
                     </td>
                     <td className="px-4 py-3.5">
-                      <p className="text-xs font-medium text-ink">{ebook.fileSize || '2.0 MB'}</p>
-                      <p className="text-xs text-secondary-500">{ebook.uploadedBy}</p>
-                      <p className="text-[11px] text-secondary-400">Added {ebook.uploadedAt}</p>
+                      <p className="text-xs font-medium text-ink">{journal.fileSize || '2.0 MB'}</p>
+                      <p className="text-xs text-secondary-500">{journal.uploadedBy}</p>
+                      <p className="text-[11px] text-secondary-400">Added {journal.uploadedAt}</p>
                     </td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2">
-                        <Badge tone={ebook.publishStatus === 'Published' ? 'success' : 'warning'}>
-                          {ebook.publishStatus}
+                        <Badge tone={journal.publishStatus === 'Published' ? 'success' : 'warning'}>
+                          {journal.publishStatus}
                         </Badge>
                         <button
-                          onClick={() => handleTogglePublish(ebook)}
+                          onClick={() => handleTogglePublish(journal)}
                           className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 underline font-medium"
-                          title={ebook.publishStatus === 'Published' ? 'Unpublish to Draft' : 'Publish to Students'}
+                          title={journal.publishStatus === 'Published' ? 'Unpublish to Draft' : 'Publish to Students'}
                         >
-                          {ebook.publishStatus === 'Published' ? (
+                          {journal.publishStatus === 'Published' ? (
                             <>
                               <EyeOff className="size-3" /> Unpublish
                             </>
@@ -169,11 +169,11 @@ export function EBooksManagementPage() {
                     </td>
                     <td className="px-4 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        <Button variant="outline" size="sm" onClick={() => handleViewDownload(ebook)}>
+                        <Button variant="outline" size="sm" onClick={() => handleViewDownload(journal)}>
                           <Download className="mr-1 size-3.5" /> View / Download
                         </Button>
                         <button
-                          onClick={() => handleDelete(ebook)}
+                          onClick={() => handleDelete(journal)}
                           className="rounded-lg p-1.5 text-secondary-400 hover:bg-danger-50 hover:text-danger-600 transition-colors"
                           title="Delete Document"
                         >
@@ -189,7 +189,10 @@ export function EBooksManagementPage() {
         </div>
       </div>
 
-      <EBookUploadModal isOpen={uploadOpen} onClose={() => setUploadOpen(false)} />
+      <JournalUploadModal isOpen={uploadOpen} onClose={() => setUploadOpen(false)} />
     </div>
   );
 }
+
+export const EBooksManagementPage = JournalsManagementPage;
+

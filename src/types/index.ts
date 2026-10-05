@@ -8,4 +8,5 @@ export * from './notice';
 export * from './settings';
 export * from './copy';
 export * from './request';
-export * from './ebook';
+export * from './journal';
+

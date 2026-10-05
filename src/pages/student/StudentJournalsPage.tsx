@@ -3,19 +3,19 @@ import toast from 'react-hot-toast';
 import { Download, BookOpen, Search, Sparkles } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Button } from '@/components/common/Button';
-import { useEBooksStore } from '@/store/ebooksStore';
-import { BOOK_CLASSIFICATIONS, type EBook } from '@/types';
+import { useJournalsStore } from '@/store/journalsStore';
+import { BOOK_CLASSIFICATIONS, type Journal } from '@/types';
 
-export function StudentEBooksPage() {
+export function StudentJournalsPage() {
   const [selectedClassification, setSelectedClassification] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const ebooks = useEBooksStore((s) => s.ebooks);
-  const incrementDownload = useEBooksStore((s) => s.incrementDownload);
+  const journals = useJournalsStore((s) => s.journals);
+  const incrementDownload = useJournalsStore((s) => s.incrementDownload);
 
-  // Per FR-ELIB-01 & FR-ELIB-02: Students can ONLY see published e-books
-  const publishedEBooks = useMemo(() => {
-    return ebooks
+  // Per FR-ELIB-01 & FR-ELIB-02: Students can ONLY see published journals
+  const publishedJournals = useMemo(() => {
+    return journals
       .filter((b) => b.publishStatus === 'Published')
       .filter((b) => selectedClassification === 'All' || b.classification === selectedClassification)
       .filter((b) => {
@@ -28,12 +28,12 @@ export function StudentEBooksPage() {
           (b.description && b.description.toLowerCase().includes(q))
         );
       });
-  }, [ebooks, selectedClassification, searchQuery]);
+  }, [journals, selectedClassification, searchQuery]);
 
-  function handleReadDownload(ebook: EBook) {
-    incrementDownload(ebook.id);
-    toast.success(`Opening "${ebook.title}"...`);
-    window.open(ebook.fileReference, '_blank');
+  function handleReadDownload(journal: Journal) {
+    incrementDownload(journal.id);
+    toast.success(`Opening "${journal.title}"...`);
+    window.open(journal.fileReference, '_blank');
   }
 
   return (
@@ -78,8 +78,8 @@ export function StudentEBooksPage() {
         </div>
       </div>
 
-      {/* Grid of e-Books */}
-      {publishedEBooks.length === 0 ? (
+      {/* Grid of Journals */}
+      {publishedJournals.length === 0 ? (
         <div className="rounded-xl border border-secondary-200 bg-white p-12 text-center shadow-sm">
           <BookOpen className="mx-auto size-12 text-secondary-300 mb-3" />
           <h3 className="text-base font-semibold text-ink">No journals found</h3>
@@ -91,25 +91,25 @@ export function StudentEBooksPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {publishedEBooks.map((ebook) => (
+          {publishedJournals.map((journal) => (
             <div
-              key={ebook.id}
+              key={journal.id}
               className="flex flex-col justify-between rounded-xl border border-secondary-100 bg-white p-5 shadow-sm hover:shadow-md transition-shadow"
             >
               <div>
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <span className="inline-flex rounded-md bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-700">
-                    {ebook.classification}
+                    {journal.classification}
                   </span>
-                  <span className="text-[11px] text-secondary-400 font-mono">{ebook.fileSize || 'PDF'}</span>
+                  <span className="text-[11px] text-secondary-400 font-mono">{journal.fileSize || 'PDF'}</span>
                 </div>
 
-                <h3 className="font-semibold text-ink text-base line-clamp-2">{ebook.title}</h3>
-                <p className="mt-1 text-xs text-secondary-600 font-medium">By {ebook.author}</p>
+                <h3 className="font-semibold text-ink text-base line-clamp-2">{journal.title}</h3>
+                <p className="mt-1 text-xs text-secondary-600 font-medium">By {journal.author}</p>
 
-                {ebook.description && (
+                {journal.description && (
                   <p className="mt-2.5 text-xs text-secondary-500 line-clamp-3 leading-relaxed">
-                    {ebook.description}
+                    {journal.description}
                   </p>
                 )}
               </div>
@@ -117,9 +117,9 @@ export function StudentEBooksPage() {
               <div className="mt-5 pt-3 border-t border-secondary-100 flex items-center justify-between">
                 <span className="text-[11px] text-secondary-400">
                   <Sparkles className="inline size-3 mr-1 text-accent-500" />
-                  {ebook.downloadCount} reads
+                  {journal.downloadCount} reads
                 </span>
-                <Button size="sm" onClick={() => handleReadDownload(ebook)}>
+                <Button size="sm" onClick={() => handleReadDownload(journal)}>
                   <Download className="mr-1.5 size-3.5" /> Read / Download
                 </Button>
               </div>
@@ -130,3 +130,6 @@ export function StudentEBooksPage() {
     </div>
   );
 }
+
+export const StudentEBooksPage = StudentJournalsPage;
+

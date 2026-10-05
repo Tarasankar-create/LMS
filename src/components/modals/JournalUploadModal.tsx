@@ -4,15 +4,17 @@ import { Upload } from 'lucide-react';
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
 import { BOOK_CLASSIFICATIONS, type BookClassification } from '@/types';
-import { useEBooksStore } from '@/store/ebooksStore';
+import { useJournalsStore } from '@/store/journalsStore';
 import { useAuthStore } from '@/store/authStore';
 
-interface EBookUploadModalProps {
+export interface JournalUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export function EBookUploadModal({ isOpen, onClose }: EBookUploadModalProps) {
+export type EBookUploadModalProps = JournalUploadModalProps;
+
+export function JournalUploadModal({ isOpen, onClose }: JournalUploadModalProps) {
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
   const [classification, setClassification] = useState<BookClassification>('Course');
@@ -22,7 +24,7 @@ export function EBookUploadModal({ isOpen, onClose }: EBookUploadModalProps) {
   const [fileSize, setFileSize] = useState('');
   const [fileUrl, setFileUrl] = useState('');
 
-  const addEBook = useEBooksStore((s) => s.addEBook);
+  const addJournal = useJournalsStore((s) => s.addJournal);
   const currentUser = useAuthStore((s) => s.currentUser);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -43,7 +45,7 @@ export function EBookUploadModal({ isOpen, onClose }: EBookUploadModalProps) {
       return;
     }
 
-    addEBook({
+    addJournal({
       title: title.trim(),
       author: author.trim(),
       classification,
@@ -59,8 +61,8 @@ export function EBookUploadModal({ isOpen, onClose }: EBookUploadModalProps) {
         ? 'Journal uploaded and published to students!'
         : 'Journal uploaded as Draft. Publish it when ready for students to view.'
     );
-    onClose();
-    // Reset form
+
+    // Reset and close
     setTitle('');
     setAuthor('');
     setClassification('Course');
@@ -69,41 +71,49 @@ export function EBookUploadModal({ isOpen, onClose }: EBookUploadModalProps) {
     setFileName('');
     setFileSize('');
     setFileUrl('');
+    onClose();
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Upload Digital Journal / Paper (FR-ELIB-01)" size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Upload New Journal" size="lg">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium text-secondary-700">Journal / Article Title *</label>
+          <label className="block text-sm font-medium text-ink mb-1">
+            Journal Title <span className="text-danger-500">*</span>
+          </label>
           <input
             type="text"
             required
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g. Modern Indian History Lecture Notes"
-            className="w-full rounded-lg border border-secondary-200 px-3 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
+            placeholder="e.g. Constitutional Law & Governance in India"
+            className="w-full px-3 py-2 border border-secondary-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-secondary-700">Author / Editor / Publisher *</label>
+            <label className="block text-sm font-medium text-ink mb-1">
+              Author / Editor / Publisher <span className="text-danger-500">*</span>
+            </label>
             <input
               type="text"
               required
               value={author}
               onChange={(e) => setAuthor(e.target.value)}
-              placeholder="e.g. Dept of History, PSC"
-              className="w-full rounded-lg border border-secondary-200 px-3 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
+              placeholder="e.g. Prof. S. N. Rath"
+              className="w-full px-3 py-2 border border-secondary-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
+
           <div>
-            <label className="mb-1 block text-sm font-medium text-secondary-700">Classification *</label>
+            <label className="block text-sm font-medium text-ink mb-1">
+              Classification <span className="text-danger-500">*</span>
+            </label>
             <select
               value={classification}
               onChange={(e) => setClassification(e.target.value as BookClassification)}
-              className="w-full rounded-lg border border-secondary-200 px-3 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
+              className="w-full px-3 py-2 border border-secondary-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               {BOOK_CLASSIFICATIONS.map((c) => (
                 <option key={c} value={c}>
@@ -114,44 +124,55 @@ export function EBookUploadModal({ isOpen, onClose }: EBookUploadModalProps) {
           </div>
         </div>
 
-        {/* File upload */}
         <div>
-          <label className="mb-1 block text-sm font-medium text-secondary-700">Journal File (PDF, EPUB) *</label>
-          <div className="flex items-center gap-3 rounded-lg border border-secondary-200 p-3">
-            <label className="cursor-pointer inline-flex items-center gap-2 rounded-lg bg-secondary-100 px-3 py-1.5 text-xs font-semibold text-secondary-700 hover:bg-secondary-200">
-              <Upload className="size-4" /> Browse PDF File
-              <input type="file" accept=".pdf,.epub,.doc,.docx" onChange={handleFileChange} className="sr-only" />
+          <label className="block text-sm font-medium text-ink mb-1">Upload PDF / Document</label>
+          <div className="border-2 border-dashed border-secondary-200 rounded-lg p-4 text-center hover:border-primary-400 transition-colors">
+            <Upload className="size-8 text-secondary-400 mx-auto mb-2" />
+            <input
+              type="file"
+              id="journal-file-input"
+              accept=".pdf,.doc,.docx,.epub"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+            <label
+              htmlFor="journal-file-input"
+              className="text-sm font-medium text-primary-600 hover:text-primary-700 cursor-pointer"
+            >
+              Click to select a file
             </label>
-            <span className="text-xs text-secondary-500">
-              {fileName ? `${fileName} (${fileSize})` : 'Or default standard sample PDF document will be attached.'}
-            </span>
+            <p className="text-xs text-secondary-500 mt-1">PDF, EPUB, or Word doc up to 50 MB</p>
+            {fileName && (
+              <p className="text-xs font-semibold text-success-600 mt-2">
+                Selected: {fileName} ({fileSize})
+              </p>
+            )}
           </div>
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-secondary-700">Description / Syllabus Reference</label>
+          <label className="block text-sm font-medium text-ink mb-1">Description / Syllabus Scope</label>
           <textarea
-            rows={3}
+            rows={2}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Brief overview of contents, targeted semester, or prescribed reading notes..."
-            className="w-full rounded-lg border border-secondary-200 px-3 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
+            placeholder="Brief overview of course curriculum topics covered..."
+            className="w-full px-3 py-2 border border-secondary-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
 
-        {/* FR-ELIB-01: Publish toggle */}
-        <div className="rounded-lg border border-secondary-200 bg-secondary-50/70 p-3.5">
-          <label className="flex items-center gap-2.5 cursor-pointer">
+        <div className="bg-secondary-50 p-3 rounded-lg border border-secondary-200">
+          <label className="flex items-start gap-3 cursor-pointer">
             <input
               type="checkbox"
               checked={isPublished}
               onChange={(e) => setIsPublished(e.target.checked)}
-              className="size-4 rounded border-secondary-300 text-primary-600 focus:ring-primary-500"
+              className="mt-1 size-4 text-primary-600 rounded border-secondary-300 focus:ring-primary-500"
             />
             <div>
               <p className="text-sm font-medium text-ink">Publish immediately for student access</p>
               <p className="text-xs text-secondary-500">
-                Per FR-ELIB-01, leaving this unchecked keeps the journal in Draft status, hidden from students until explicitly published.
+                Leaving this unchecked keeps the journal in Draft status, hidden from students until explicitly published.
               </p>
             </div>
           </label>
@@ -167,3 +188,6 @@ export function EBookUploadModal({ isOpen, onClose }: EBookUploadModalProps) {
     </Modal>
   );
 }
+
+export const EBookUploadModal = JournalUploadModal;
+

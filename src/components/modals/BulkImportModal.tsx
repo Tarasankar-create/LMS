@@ -191,7 +191,13 @@ export function BulkImportModal({ isOpen, onClose }: BulkImportModalProps) {
         accessionNumber: acc,
         title,
         author,
-        category: classification.startsWith('Stream - Science') ? 'Science' : classification.startsWith('Stream - Arts') ? 'Arts' : 'Reference',
+        category: classification.startsWith('Stream - Science')
+          ? 'Science'
+          : classification.startsWith('Stream - Arts')
+            ? 'Arts'
+            : classification === 'Journals'
+              ? 'Journals and Magazines'
+              : 'Commerce',
         subject,
         classification,
         publisher: rawPub?.trim() || undefined,

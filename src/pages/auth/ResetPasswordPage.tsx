@@ -269,7 +269,7 @@ export function ResetPasswordPage() {
           )}
         </div>
 
-        {/* Field 3: Again type new password with real-time verification */}
+        {/* Field 3: Re-Type new password with real-time verification */}
         <div>
           <div className="mb-1 flex items-center justify-between">
             <label htmlFor="confirm-password" className="block text-xs font-semibold text-secondary-700">

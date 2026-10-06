@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { FileSpreadsheet, Printer, BookOpen, Users } from 'lucide-react';
+import { FileSpreadsheet, Printer, BookOpen, Users, Calendar, ArrowDown, ArrowUp } from 'lucide-react';
+import { addDays, differenceInCalendarDays, format, isValid, parseISO } from 'date-fns';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Button } from '@/components/common/Button';
 import { ChartCard } from '@/components/common/ChartCard';
@@ -10,11 +11,12 @@ import { useBooksStore } from '@/store/booksStore';
 import { useLoansStore } from '@/store/loansStore';
 import { useMembersStore } from '@/store/membersStore';
 import { useFinesStore } from '@/store/finesStore';
+import { useCopiesStore } from '@/store/copiesStore';
 import { BOOK_CATEGORIES } from '@/types';
 import { buildCategoryDistribution, buildDepartmentUsage, buildMonthlyCirculation } from '@/utils/circulationStats';
 import { exportToExcel } from '@/utils/excelExport';
 import { formatCurrency } from '@/utils/currency';
-import { formatDate, overdueDays } from '@/utils/date';
+import { formatDate, overdueDays, todayISO, addDaysISO } from '@/utils/date';
 import { cn } from '@/utils/cn';
 
 export const CATALOG_TABS = [
@@ -23,15 +25,27 @@ export const CATALOG_TABS = [
   'Department Holdings',
   'Available Books',
   'Asset Valuation',
+  'Lost / Damaged / Withdrawn',
 ] as const;
 
 export const ASSIGNMENT_TABS = [
   'Issue & Return Summary',
+  'Daily Circulation',
+  'Usage Report',
   'Currently Assigned Books',
   'Overdue Books',
   'Department-wise Usage',
   'Fine Collection',
   'Circulation Trends',
+] as const;
+
+export const USAGE_PRESET_OPTIONS = [
+  { label: 'Last 30 Days', days: 30 },
+  { label: 'Last 90 Days', days: 90 },
+  { label: 'Last 180 Days', days: 180 },
+  { label: 'Last 1 Year', days: 365 },
+  { label: 'Last 3 Years', days: 1095 },
+  { label: 'Last 5 Years', days: 1825 },
 ] as const;
 
 export type CatalogTab = (typeof CATALOG_TABS)[number];
@@ -40,10 +54,17 @@ export type ReportTab = CatalogTab | AssignmentTab;
 
 export function ReportsPage() {
   const [activeTab, setActiveTab] = useState<ReportTab>('Total Holdings');
+  const [dailyFromDate, setDailyFromDate] = useState(() => addDaysISO(todayISO(), -30));
+  const [dailyToDate, setDailyToDate] = useState(() => todayISO());
+  const [dailySortOrder, setDailySortOrder] = useState<'desc' | 'asc'>('desc');
+  const [usageFromDate, setUsageFromDate] = useState(() => addDaysISO(todayISO(), -365));
+  const [usageToDate, setUsageToDate] = useState(() => todayISO());
+
   const books = useBooksStore((s) => s.books);
   const loans = useLoansStore((s) => s.loans);
   const members = useMembersStore((s) => s.members);
   const fines = useFinesStore((s) => s.fines);
+  const copies = useCopiesStore((s) => s.copies);
 
   // --- CATALOG VIEW DATA ---
   const holdingsByCategory = useMemo(
@@ -111,6 +132,21 @@ export function ReportsPage() {
     [assetValuation],
   );
 
+  const lostDamagedWithdrawnCopies = useMemo(() => {
+    const bookMap = new Map(books.map((b) => [b.accessionNumber, b.title]));
+    const bookIdMap = new Map(books.map((b) => [b.id, b.title]));
+    return copies
+      .filter((c) => c.status === 'Lost' || c.status === 'Damaged' || c.status === 'Withdrawn')
+      .map((c) => ({
+        barcode: c.barcode,
+        accessionNumber: c.accessionNumber,
+        bookTitle: bookMap.get(c.accessionNumber) ?? bookIdMap.get(c.bookId) ?? 'Unknown Title',
+        status: c.status,
+        statusChangedDate: c.statusChangedDate ?? '-',
+        reason: c.statusReason ?? '-',
+      }));
+  }, [copies, books]);
+
   // --- ASSIGNMENT VIEW DATA ---
   const activeLoans = useMemo(
     () => loans.filter((l) => l.status === 'Active'),
@@ -147,8 +183,136 @@ export function ReportsPage() {
     return { issued, returned, renewed, active };
   }, [loans]);
 
+  const dailyCirculationData = useMemo(() => {
+    if (!dailyFromDate || !dailyToDate) return [];
+    const start = dailyFromDate <= dailyToDate ? dailyFromDate : dailyToDate;
+    const end = dailyFromDate <= dailyToDate ? dailyToDate : dailyFromDate;
+
+    const startDate = parseISO(start);
+    const endDate = parseISO(end);
+    if (!isValid(startDate) || !isValid(endDate)) return [];
+
+    const totalDays = differenceInCalendarDays(endDate, startDate);
+    const maxDays = Math.min(Math.max(0, totalDays), 365);
+
+    const issueMap = new Map<string, number>();
+    const returnMap = new Map<string, number>();
+    const renewalMap = new Map<string, number>();
+
+    loans.forEach((loan) => {
+      const issueDay = loan.issueDate ? loan.issueDate.slice(0, 10) : '';
+      if (issueDay >= start && issueDay <= end) {
+        issueMap.set(issueDay, (issueMap.get(issueDay) ?? 0) + 1);
+        if (loan.renewalCount > 0) {
+          renewalMap.set(issueDay, (renewalMap.get(issueDay) ?? 0) + 1);
+        }
+      }
+      if (loan.returnDate) {
+        const returnDay = loan.returnDate.slice(0, 10);
+        if (returnDay >= start && returnDay <= end) {
+          returnMap.set(returnDay, (returnMap.get(returnDay) ?? 0) + 1);
+        }
+      }
+    });
+
+    const rows: {
+      date: string;
+      issued: number;
+      returned: number;
+      renewals: number;
+      total: number;
+    }[] = [];
+
+    for (let i = 0; i <= maxDays; i += 1) {
+      const dayISO = format(addDays(startDate, i), 'yyyy-MM-dd');
+      const issued = issueMap.get(dayISO) ?? 0;
+      const returned = returnMap.get(dayISO) ?? 0;
+      const renewals = renewalMap.get(dayISO) ?? 0;
+      rows.push({
+        date: dayISO,
+        issued,
+        returned,
+        renewals,
+        total: issued + returned,
+      });
+    }
+
+    rows.sort((a, b) => {
+      return dailySortOrder === 'asc'
+        ? a.date.localeCompare(b.date)
+        : b.date.localeCompare(a.date);
+    });
+
+    return rows;
+  }, [loans, dailyFromDate, dailyToDate, dailySortOrder]);
+
+  const dailyTotals = useMemo(() => {
+    return dailyCirculationData.reduce(
+      (acc, r) => ({
+        issued: acc.issued + r.issued,
+        returned: acc.returned + r.returned,
+        renewals: acc.renewals + r.renewals,
+        total: acc.total + r.total,
+      }),
+      { issued: 0, returned: 0, renewals: 0, total: 0 },
+    );
+  }, [dailyCirculationData]);
+
   const departmentUsage = useMemo(() => buildDepartmentUsage(loans, members), [loans, members]);
   const monthly12 = useMemo(() => buildMonthlyCirculation(loans, 12), [loans]);
+
+  const usageStats = useMemo(() => {
+    const from = usageFromDate || todayISO();
+    const to = usageToDate || todayISO();
+    const start = from <= to ? from : to;
+    const end = from <= to ? to : from;
+
+    const issueCounts = new Map<string, number>();
+    let totalIssuesInWindow = 0;
+
+    loans.forEach((loan) => {
+      const issueDay = loan.issueDate ? loan.issueDate.slice(0, 10) : '';
+      if (issueDay >= start && issueDay <= end) {
+        totalIssuesInWindow += 1;
+        issueCounts.set(loan.bookId, (issueCounts.get(loan.bookId) ?? 0) + 1);
+      }
+    });
+
+    const activeBooks = books.filter((b) => b.status !== 'Retired');
+
+    const mappedBooks = activeBooks.map((b) => ({
+      bookId: b.id,
+      accessionNumber: b.accessionNumber,
+      title: b.title,
+      author: b.author,
+      category: b.category,
+      department: b.department ?? '-',
+      shelfLocation: b.shelfLocation,
+      totalCopies: b.totalCopies,
+      availableCopies: b.availableCopies,
+      issueCount: issueCounts.get(b.id) ?? 0,
+    }));
+
+    // Most-issued: descending by issueCount, ties broken by title
+    const mostIssued = [...mappedBooks].sort((a, b) => b.issueCount - a.issueCount || a.title.localeCompare(b.title));
+
+    // Least-issued: ascending by issueCount, ties broken by title
+    const leastIssued = [...mappedBooks].sort((a, b) => a.issueCount - b.issueCount || a.title.localeCompare(b.title));
+
+    const circulatingCount = mappedBooks.filter((b) => b.issueCount > 0).length;
+    const zeroCirculationCount = mappedBooks.filter((b) => b.issueCount === 0).length;
+
+    return {
+      start,
+      end,
+      totalTitles: activeBooks.length,
+      circulatingCount,
+      zeroCirculationCount,
+      totalIssuesInWindow,
+      mostIssued,
+      leastIssued,
+    };
+  }, [books, loans, usageFromDate, usageToDate]);
 
   function memberInfo(memberId: string) {
     const m = members.find((mem) => mem.memberId === memberId);
@@ -215,6 +379,51 @@ export function ReportsPage() {
             { header: 'Total Value', accessor: (r) => r.totalValue },
           ],
           assetValuation,
+        );
+        break;
+      case 'Lost / Damaged / Withdrawn':
+        exportToExcel(
+          'lost-damaged-withdrawn-copies',
+          [
+            { header: 'Barcode', accessor: (r: (typeof lostDamagedWithdrawnCopies)[number]) => r.barcode },
+            { header: 'Accession No.', accessor: (r) => r.accessionNumber },
+            { header: 'Book Title', accessor: (r) => r.bookTitle },
+            { header: 'Status', accessor: (r) => r.status },
+            { header: 'Status Changed Date', accessor: (r) => (r.statusChangedDate !== '-' ? formatDate(r.statusChangedDate) : '-') },
+            { header: 'Reason / Remarks', accessor: (r) => r.reason },
+          ],
+          lostDamagedWithdrawnCopies,
+        );
+        break;
+      case 'Daily Circulation':
+        exportToExcel(
+          `daily-circulation-${dailyFromDate}-to-${dailyToDate}`,
+          [
+            { header: 'Date', accessor: (r: (typeof dailyCirculationData)[number]) => formatDate(r.date) },
+            { header: 'Date (YYYY-MM-DD)', accessor: (r) => r.date },
+            { header: 'Books Issued', accessor: (r) => r.issued },
+            { header: 'Books Returned', accessor: (r) => r.returned },
+            { header: 'Renewals', accessor: (r) => r.renewals },
+            { header: 'Total Transactions', accessor: (r) => r.total },
+          ],
+          dailyCirculationData,
+        );
+        break;
+      case 'Usage Report':
+        exportToExcel(
+          `usage-report-${usageFromDate}-to-${usageToDate}`,
+          [
+            { header: 'Accession No.', accessor: (b: (typeof usageStats.mostIssued)[number]) => b.accessionNumber },
+            { header: 'Book Title', accessor: (b) => b.title },
+            { header: 'Author', accessor: (b) => b.author },
+            { header: 'Category', accessor: (b) => b.category },
+            { header: 'Department', accessor: (b) => b.department },
+            { header: 'Shelf Location', accessor: (b) => b.shelfLocation },
+            { header: 'Total Copies', accessor: (b) => b.totalCopies },
+            { header: 'Available Copies', accessor: (b) => b.availableCopies },
+            { header: 'Times Issued (In Period)', accessor: (b) => b.issueCount },
+          ],
+          usageStats.mostIssued,
         );
         break;
       case 'Currently Assigned Books':
@@ -418,6 +627,22 @@ export function ReportsPage() {
         </ChartCard>
       )}
 
+      {activeTab === 'Lost / Damaged / Withdrawn' && (
+        <ChartCard title={`Lost, Damaged & Withdrawn Copies (${lostDamagedWithdrawnCopies.length} items)`}>
+          <SimpleTable
+            columns={['Barcode', 'Accession No.', 'Book Title', 'Status', 'Status Changed Date', 'Reason / Remarks']}
+            rows={lostDamagedWithdrawnCopies.map((c) => [
+              c.barcode,
+              c.accessionNumber,
+              c.bookTitle,
+              c.status,
+              c.statusChangedDate !== '-' ? formatDate(c.statusChangedDate) : '-',
+              c.reason,
+            ])}
+          />
+        </ChartCard>
+      )}
+
       {/* --- ASSIGNMENT VIEW TAB CONTENTS --- */}
       {activeTab === 'Issue & Return Summary' && (
         <ChartCard title="Issue & Return Summary (All Time)">
@@ -431,6 +656,245 @@ export function ReportsPage() {
             ]}
           />
         </ChartCard>
+      )}
+
+      {activeTab === 'Daily Circulation' && (
+        <div className="space-y-4">
+          <div className="no-print flex flex-wrap items-center justify-between gap-3 rounded-xl border border-secondary-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-secondary-600">
+                <Calendar className="size-3.5 text-primary-600" />
+                Date Range:
+              </span>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-secondary-600">From:</label>
+                <input
+                  type="date"
+                  value={dailyFromDate}
+                  onChange={(e) => setDailyFromDate(e.target.value)}
+                  className="rounded-lg border border-secondary-300 bg-white px-2.5 py-1.5 text-xs font-medium text-ink shadow-2xs focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-secondary-600">To:</label>
+                <input
+                  type="date"
+                  value={dailyToDate}
+                  onChange={(e) => setDailyToDate(e.target.value)}
+                  className="rounded-lg border border-secondary-300 bg-white px-2.5 py-1.5 text-xs font-medium text-ink shadow-2xs focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs font-medium text-secondary-600">Sort Date:</label>
+                <div className="inline-flex rounded-lg border border-secondary-200 bg-secondary-50 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setDailySortOrder('desc')}
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                      dailySortOrder === 'desc'
+                        ? 'bg-white font-semibold text-primary-700 shadow-2xs'
+                        : 'text-secondary-600 hover:text-ink',
+                    )}
+                    title="Sort Newest First (Descending)"
+                  >
+                    <ArrowDown className="size-3" />
+                    Descending
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDailySortOrder('asc')}
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                      dailySortOrder === 'asc'
+                        ? 'bg-white font-semibold text-primary-700 shadow-2xs'
+                        : 'text-secondary-600 hover:text-ink',
+                    )}
+                    title="Sort Oldest First (Ascending)"
+                  >
+                    <ArrowUp className="size-3" />
+                    Ascending
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDailyFromDate(addDaysISO(todayISO(), -7));
+                    setDailyToDate(todayISO());
+                  }}
+                  className="rounded-md border border-secondary-200 bg-secondary-50 px-2.5 py-1 text-xs font-medium text-secondary-700 hover:bg-secondary-100 transition-colors"
+                >
+                  Last 7 Days
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDailyFromDate(addDaysISO(todayISO(), -30));
+                    setDailyToDate(todayISO());
+                  }}
+                  className="rounded-md border border-secondary-200 bg-secondary-50 px-2.5 py-1 text-xs font-medium text-secondary-700 hover:bg-secondary-100 transition-colors"
+                >
+                  Last 30 Days
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDailyFromDate(addDaysISO(todayISO(), -90));
+                    setDailyToDate(todayISO());
+                  }}
+                  className="rounded-md border border-secondary-200 bg-secondary-50 px-2.5 py-1 text-xs font-medium text-secondary-700 hover:bg-secondary-100 transition-colors"
+                >
+                  Last 90 Days
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-secondary-100 bg-white p-4 shadow-2xs">
+              <p className="text-xs font-medium text-secondary-500">Books Issued</p>
+              <p className="mt-1 text-xl font-bold text-ink">{dailyTotals.issued}</p>
+            </div>
+            <div className="rounded-xl border border-secondary-100 bg-white p-4 shadow-2xs">
+              <p className="text-xs font-medium text-secondary-500">Books Returned</p>
+              <p className="mt-1 text-xl font-bold text-ink">{dailyTotals.returned}</p>
+            </div>
+            <div className="rounded-xl border border-secondary-100 bg-white p-4 shadow-2xs">
+              <p className="text-xs font-medium text-secondary-500">Renewals</p>
+              <p className="mt-1 text-xl font-bold text-ink">{dailyTotals.renewals}</p>
+            </div>
+            <div className="rounded-xl border border-secondary-100 bg-white p-4 shadow-2xs">
+              <p className="text-xs font-medium text-secondary-500">Total Transactions</p>
+              <p className="mt-1 text-xl font-bold text-primary-700">{dailyTotals.total}</p>
+            </div>
+          </div>
+
+          <ChartCard
+            title={`Daily Circulation Log (${formatDate(dailyFromDate)} — ${formatDate(dailyToDate)}) · ${dailySortOrder === 'desc' ? 'Newest to Oldest (Descending)' : 'Oldest to Newest (Ascending)'}`}
+          >
+            <SimpleTable
+              columns={['Date', 'Books Issued', 'Books Returned', 'Renewals', 'Total Transactions']}
+              rows={dailyCirculationData.map((d) => [
+                formatDate(d.date),
+                d.issued,
+                d.returned,
+                d.renewals,
+                d.total,
+              ])}
+            />
+          </ChartCard>
+        </div>
+      )}
+
+      {activeTab === 'Usage Report' && (
+        <div className="space-y-4">
+          <div className="no-print flex flex-wrap items-center justify-between gap-3 rounded-xl border border-secondary-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-secondary-600">
+                <Calendar className="size-3.5 text-primary-600" />
+                Calendar Range:
+              </span>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-secondary-600">From:</label>
+                <input
+                  type="date"
+                  value={usageFromDate}
+                  onChange={(e) => setUsageFromDate(e.target.value)}
+                  className="rounded-lg border border-secondary-300 bg-white px-2.5 py-1.5 text-xs font-medium text-ink shadow-2xs focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-secondary-600">To:</label>
+                <input
+                  type="date"
+                  value={usageToDate}
+                  onChange={(e) => setUsageToDate(e.target.value)}
+                  className="rounded-lg border border-secondary-300 bg-white px-2.5 py-1.5 text-xs font-medium text-ink shadow-2xs focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-medium text-secondary-500 mr-1">Quick:</span>
+              {USAGE_PRESET_OPTIONS.map((opt) => (
+                <button
+                  key={opt.label}
+                  type="button"
+                  onClick={() => {
+                    setUsageFromDate(addDaysISO(todayISO(), -opt.days));
+                    setUsageToDate(todayISO());
+                  }}
+                  className="rounded-md border border-secondary-200 bg-secondary-50 px-2.5 py-1 text-xs font-medium text-secondary-700 hover:bg-secondary-100 transition-colors"
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-secondary-100 bg-white p-4 shadow-2xs">
+              <p className="text-xs font-medium text-secondary-500">Catalog Titles</p>
+              <p className="mt-1 text-xl font-bold text-ink">{usageStats.totalTitles}</p>
+            </div>
+            <div className="rounded-xl border border-secondary-100 bg-white p-4 shadow-2xs">
+              <p className="text-xs font-medium text-secondary-500">Total Issues in Window</p>
+              <p className="mt-1 text-xl font-bold text-primary-700">{usageStats.totalIssuesInWindow}</p>
+            </div>
+            <div className="rounded-xl border border-secondary-100 bg-white p-4 shadow-2xs">
+              <p className="text-xs font-medium text-secondary-500">Circulating Titles</p>
+              <p className="mt-1 text-xl font-bold text-emerald-600">{usageStats.circulatingCount}</p>
+            </div>
+            <div className="rounded-xl border border-secondary-100 bg-white p-4 shadow-2xs">
+              <p className="text-xs font-medium text-secondary-500">Zero Circulation</p>
+              <p className="mt-1 text-xl font-bold text-amber-600">{usageStats.zeroCirculationCount}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+            <ChartCard
+              title={`Most-Issued Titles (${formatDate(usageStats.start)} — ${formatDate(usageStats.end)})`}
+              description="Top borrowed books ranked by issues during the selected date range."
+            >
+              <SimpleTable
+                columns={['Rank', 'Accession No.', 'Book Title', 'Author', 'Category', 'Total Copies', 'Times Issued']}
+                rows={usageStats.mostIssued.slice(0, 25).map((b, idx) => [
+                  `#${idx + 1}`,
+                  b.accessionNumber,
+                  b.title,
+                  b.author,
+                  b.category,
+                  b.totalCopies,
+                  b.issueCount,
+                ])}
+              />
+            </ChartCard>
+
+            <ChartCard
+              title={`Least-Issued Titles (${formatDate(usageStats.start)} — ${formatDate(usageStats.end)})`}
+              description="Books with lowest or zero circulation during the date range (useful for collection evaluation & weed-out decisions)."
+            >
+              <SimpleTable
+                columns={['Accession No.', 'Book Title', 'Author', 'Category', 'Shelf Location', 'Available Copies', 'Times Issued']}
+                rows={usageStats.leastIssued.slice(0, 25).map((b) => [
+                  b.accessionNumber,
+                  b.title,
+                  b.author,
+                  b.category,
+                  b.shelfLocation,
+                  b.availableCopies,
+                  b.issueCount,
+                ])}
+              />
+            </ChartCard>
+          </div>
+        </div>
       )}
 
       {activeTab === 'Currently Assigned Books' && (

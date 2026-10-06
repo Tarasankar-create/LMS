@@ -69,7 +69,7 @@ describe('Staff & User Management (Admin Module)', () => {
     expect(can(matrix, currentUser?.role, 'books', 'create')).toBe(true);
     expect(can(matrix, currentUser?.role, 'members', 'create')).toBe(true);
     expect(can(matrix, currentUser?.role, 'reports', 'view')).toBe(true);
-    expect(can(matrix, currentUser?.role, 'librarySettings', 'view')).toBe(false);
+    expect(can(matrix, currentUser?.role, 'librarySettings', 'view')).toBe(true);
   });
 
   it('allows Admin to add a new Principal via role dropdown and verifies executive read-only oversight', () => {

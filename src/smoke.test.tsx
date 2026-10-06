@@ -48,8 +48,8 @@ describe('smoke', () => {
       const detail = await render(`/books/${firstBookId}`);
       expect(detail.text).toContain('Copy Status');
     }
-    // an admin-console URL from the old build no longer exists
-    expect((await render('/admin/users')).text).not.toContain('Roles');
+    // librarian has full access to staff & user management matching admin
+    expect((await render('/admin/users')).text).toContain('Staff & User Management');
 
     useAuthStore.getState().logout();
     expect(useAuthStore.getState().login('student', '2026001', 'student123').success).toBe(true);

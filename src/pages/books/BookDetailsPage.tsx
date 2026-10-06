@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Printer } from 'lucide-react';
+import { ArrowLeft, BookOpen, Printer, Pencil } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
@@ -9,15 +9,28 @@ import { useBooksStore } from '@/store/booksStore';
 import { useLoansStore } from '@/store/loansStore';
 import { useMembersStore } from '@/store/membersStore';
 import { useCopiesStore } from '@/store/copiesStore';
+import { useCan } from '@/access/useCan';
+import { useAuthStore } from '@/store/authStore';
 import { BarcodeLabelsSheet } from '@/components/modals/BarcodeLabelsSheet';
+import { CopyStatusModal } from '@/components/modals/CopyStatusModal';
 import { formatDate } from '@/utils/date';
 import { ROUTES } from '@/routes/routePaths';
 import { cn } from '@/utils/cn';
+import type { BookCopy } from '@/types';
 
 export function BookDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const can = useCan();
+  const currentUser = useAuthStore((s) => s.currentUser);
+  const canManageCopies =
+    can('books', 'edit') ||
+    can('circulation', 'edit') ||
+    currentUser?.role === 'admin' ||
+    currentUser?.role === 'librarian' ||
+    currentUser?.role === 'staff' ||
+    !currentUser;
 
   const book = useBooksStore((s) => s.getById(id ?? ''));
   const loans = useLoansStore((s) => s.loans);
@@ -25,6 +38,7 @@ export function BookDetailsPage() {
   const allCopies = useCopiesStore((s) => s.copies);
 
   const [labelsOpen, setLabelsOpen] = useState(false);
+  const [selectedCopy, setSelectedCopy] = useState<BookCopy | null>(null);
 
   useEffect(() => {
     if ((location.state as { printLabels?: boolean } | null)?.printLabels) {
@@ -47,6 +61,36 @@ export function BookDetailsPage() {
     () => (book ? allCopies.filter((c) => c.accessionNumber === book.accessionNumber).sort((a, b) => a.copyNumber - b.copyNumber) : []),
     [allCopies, book],
   );
+
+  // Auto-generate physical copy records if the book has totalCopies but no copies exist in the store yet
+  useEffect(() => {
+    if (book && copies.length === 0 && (book.totalCopies ?? 0) > 0) {
+      useCopiesStore.getState().addCopies(book.id, book.accessionNumber, book.totalCopies);
+    }
+  }, [book, copies.length]);
+
+  const displayedCopies = useMemo(() => {
+    if (copies.length > 0) return copies;
+    if (!book || !book.totalCopies) return [];
+    return Array.from({ length: book.totalCopies }, (_, i) => ({
+      id: `copy-${book.id}-${i + 1}`,
+      barcode: `${book.accessionNumber}-${String(i + 1).padStart(2, '0')}`,
+      accessionNumber: book.accessionNumber,
+      bookId: book.id,
+      copyNumber: i + 1,
+      status: (i < (book.totalCopies - book.availableCopies) ? 'Issued' : 'Available') as BookCopy['status'],
+      addedDate: book.addedDate,
+    }));
+  }, [copies, book]);
+
+  function handleOpenCopyStatus(copy: BookCopy) {
+    let storeCopy = useCopiesStore.getState().getByBarcode(copy.barcode);
+    if (!storeCopy && book) {
+      const added = useCopiesStore.getState().addCopies(book.id, book.accessionNumber, book.totalCopies);
+      storeCopy = added.find((c) => c.barcode === copy.barcode) ?? added[0];
+    }
+    setSelectedCopy(storeCopy ?? copy);
+  }
 
   function memberName(memberId: string) {
     return members.find((m) => m.memberId === memberId)?.name ?? memberId;
@@ -107,6 +151,14 @@ export function BookDetailsPage() {
               <dd className="font-medium text-ink">{book.isbn ?? '-'}</dd>
             </div>
             <div>
+              <dt className="text-secondary-500">Publisher</dt>
+              <dd className="font-medium text-ink">{book.publisher ?? '-'}</dd>
+            </div>
+            <div>
+              <dt className="text-secondary-500">Edition</dt>
+              <dd className="font-medium text-ink">{book.edition ?? '-'}</dd>
+            </div>
+            <div>
               <dt className="text-secondary-500">Shelf Location</dt>
               <dd className="font-medium text-ink">{book.shelfLocation}</dd>
             </div>
@@ -137,22 +189,48 @@ export function BookDetailsPage() {
           </dl>
 
           <div className="mt-6">
-            <h3 className="mb-2 text-sm font-semibold text-ink">Copy Status</h3>
-            <div className="flex flex-wrap gap-2">
-              {copies.map((copy) => (
-                <span
-                  key={copy.id}
-                  className={cn(
-                    'rounded-lg border px-3 py-1.5 font-mono text-xs font-medium',
-                    copy.status === 'Available' && 'border-success-500/30 bg-success-50 text-success-600',
-                    copy.status === 'Held' && 'border-warning-500/30 bg-warning-50 text-warning-600',
-                    copy.status === 'Issued' && 'border-primary-500/30 bg-primary-50 text-primary-600',
-                    (copy.status === 'Lost' || copy.status === 'Damaged') && 'border-danger-500/30 bg-danger-50 text-danger-600',
-                  )}
-                >
-                  {copy.barcode} · {copy.status}
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-ink">Copy Status</h3>
+              {canManageCopies && displayedCopies.length > 0 && (
+                <span className="text-xs text-secondary-500">
+                  Click the <Pencil className="inline size-3 text-primary-600" /> <strong>Edit</strong> button on any copy to change its status
                 </span>
-              ))}
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {displayedCopies.length === 0 ? (
+                <p className="text-sm text-secondary-500">No copies recorded for this book.</p>
+              ) : (
+                displayedCopies.map((copy) => (
+                  <div
+                    key={copy.id}
+                    className={cn(
+                      'inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono text-xs font-medium shadow-2xs',
+                      copy.status === 'Available' && 'border-success-500/30 bg-success-50 text-success-700',
+                      copy.status === 'Held' && 'border-warning-500/30 bg-warning-50 text-warning-700',
+                      copy.status === 'Issued' && 'border-primary-500/30 bg-primary-50 text-primary-700',
+                      (copy.status === 'Lost' || copy.status === 'Damaged') && 'border-danger-500/30 bg-danger-50 text-danger-700',
+                      copy.status === 'Withdrawn' && 'border-secondary-300 bg-secondary-100 text-secondary-700',
+                    )}
+                  >
+                    <span>
+                      {copy.barcode} · {copy.status}
+                    </span>
+                    {canManageCopies && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCopyStatus(copy)}
+                        className="ml-1 inline-flex items-center gap-1 rounded border border-secondary-300 bg-white px-2 py-0.5 text-xs font-sans font-semibold text-secondary-700 shadow-2xs transition-colors hover:border-primary-400 hover:bg-primary-50 hover:text-primary-700 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20"
+                        title={`Edit status for copy ${copy.barcode}`}
+                        aria-label={`Edit status for copy ${copy.barcode}`}
+                      >
+                        <Pencil className="size-3 text-primary-600" />
+                        <span>Edit</span>
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -210,7 +288,14 @@ export function BookDetailsPage() {
         )}
       </div>
 
-      {labelsOpen && <BarcodeLabelsSheet book={book} copies={copies} onClose={() => setLabelsOpen(false)} />}
+      {labelsOpen && <BarcodeLabelsSheet book={book} copies={displayedCopies} onClose={() => setLabelsOpen(false)} />}
+
+      {selectedCopy && (
+        <CopyStatusModal
+          copy={selectedCopy}
+          onClose={() => setSelectedCopy(null)}
+        />
+      )}
     </div>
   );
 }

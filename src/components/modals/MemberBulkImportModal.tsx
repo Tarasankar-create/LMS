@@ -4,6 +4,7 @@ import { Download, FileSpreadsheet, Upload, AlertCircle, CheckCircle2 } from 'lu
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
 import { useMembersStore } from '@/store/membersStore';
+import { useAccessStore } from '@/access/accessStore';
 import { DEPARTMENTS} from '@/constants/departments';
 import type { Member, MemberStatus } from '@/types';
 import { generateId } from '@/utils/id';
@@ -190,6 +191,10 @@ export function MemberBulkImportModal({ isOpen, onClose }: MemberBulkImportModal
 
     if (validMembersToAdd.length > 0) {
       addMembers(validMembersToAdd);
+      const accessStore = useAccessStore.getState();
+      validMembersToAdd.forEach((m) => {
+        accessStore.ensureStudentUserForMember(m);
+      });
     }
 
     setImportStats({

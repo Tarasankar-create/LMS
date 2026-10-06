@@ -31,6 +31,11 @@ export function NoticesPanel({ canOpen }: { canOpen: boolean }) {
                 <Badge tone={CATEGORY_TONE[n.category]} withDot={false}>
                   {n.category}
                 </Badge>
+                {n.isDefault && (
+                  <Badge tone="accent" withDot={false}>
+                    Default
+                  </Badge>
+                )}
                 <span className="text-xs text-secondary-500">{formatDate(n.publishDate)}</span>
               </div>
               {canOpen ? (

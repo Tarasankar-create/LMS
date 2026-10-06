@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Users, UserPlus, Shield, ShieldCheck, GraduationCap, BookOpen } from 'lucide-react';
+import { Users, UserPlus, Shield, ShieldCheck, GraduationCap, BookOpen, FileSpreadsheet } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { StatCard } from '@/components/common/StatCard';
 import { Button } from '@/components/common/Button';
 import { DataTable } from '@/components/tables/DataTable';
 import { createUserColumns } from '@/components/tables/columns/userColumns';
 import { UserFormModal } from '@/components/modals/UserFormModal';
+import { StaffBulkImportModal } from '@/components/modals/StaffBulkImportModal';
 import { ResetPasswordModal } from '@/components/modals/ResetPasswordModal';
 import { useConfirm } from '@/components/common/ConfirmDialogProvider';
 import { useAccessStore } from '@/access/accessStore';
@@ -30,6 +31,7 @@ export function AdminUsersPage() {
 
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | undefined>();
   const [passwordResetUser, setPasswordResetUser] = useState<User | undefined>();
 
@@ -168,10 +170,16 @@ export function AdminUsersPage() {
         title="Staff & User Management"
         description="Add staff, librarians, principals, and configure institutional access credentials."
         actions={
-          <Button onClick={() => setIsAddModalOpen(true)} className="gap-2">
-            <UserPlus className="size-4" />
-            Add Staff, Librarian or Principal
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setIsBulkImportOpen(true)} className="gap-2">
+              <FileSpreadsheet className="size-4" />
+              Bulk Upload (Excel/CSV)
+            </Button>
+            <Button onClick={() => setIsAddModalOpen(true)} className="gap-2">
+              <UserPlus className="size-4" />
+              Add Staff, Librarian or Principal
+            </Button>
+          </div>
         }
       />
 
@@ -215,9 +223,9 @@ export function AdminUsersPage() {
             <p className="font-semibold text-primary-950">How Staff User Access Works</p>
             <p className="text-primary-800">
               When an Administrator creates a new user and selects their role from the dropdown (
-              <span className="font-medium">Admin</span>, <span className="font-medium">Librarian</span>, <span className="font-medium">Staff (College Staff)</span>, or{' '}
+              <span className="font-medium">Librarian</span>, <span className="font-medium">Staff (College Staff)</span>, or{' '}
               <span className="font-medium">Principal</span>), the user can immediately log in on the login page via the{' '}
-              <span className="font-medium">Staff Login</span> tab using their assigned username and password.
+              <span className="font-medium">Staff Login</span> tab using their assigned username and password. The system maintains a single master Administrator account.
             </p>
           </div>
         </div>
@@ -272,6 +280,12 @@ export function AdminUsersPage() {
         onSubmit={handleAddUser}
       />
 
+      {/* Bulk Upload Modal */}
+      <StaffBulkImportModal
+        isOpen={isBulkImportOpen}
+        onClose={() => setIsBulkImportOpen(false)}
+      />
+
       {/* Edit User Modal */}
       <UserFormModal
         isOpen={!!editingUser}
@@ -290,3 +304,4 @@ export function AdminUsersPage() {
     </div>
   );
 }
+

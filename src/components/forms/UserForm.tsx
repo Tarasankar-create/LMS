@@ -14,6 +14,9 @@ interface UserFormProps {
   onCancel: () => void;
 }
 
+// Set to true to re-enable the automatic password generator button in the future
+const SHOW_PASSWORD_GENERATOR = false;
+
 export function UserForm({ initialValues, existingUser, onSubmit, onCancel }: UserFormProps) {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -69,13 +72,24 @@ export function UserForm({ initialValues, existingUser, onSubmit, onCancel }: Us
         <select
           id="user-role"
           {...register('role')}
-          className="w-full rounded-lg border border-secondary-200 bg-white px-3 py-2 text-sm font-medium text-ink shadow-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
+          disabled={existingUser?.role === 'admin'}
+          className="w-full rounded-lg border border-secondary-200 bg-white px-3 py-2 text-sm font-medium text-ink shadow-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100 disabled:bg-secondary-100 disabled:text-secondary-500 disabled:cursor-not-allowed"
         >
-          <option value="admin">Admin</option>
-          <option value="librarian">Librarian</option>
-          <option value="staff">Staff (College Staff)</option>
-          <option value="principal">Principal</option>
+          {existingUser?.role === 'admin' ? (
+            <option value="admin">Admin (System Master)</option>
+          ) : (
+            <>
+              <option value="librarian">Librarian</option>
+              <option value="staff">Staff (College Staff)</option>
+              <option value="principal">Principal</option>
+            </>
+          )}
         </select>
+        {existingUser?.role === 'admin' && (
+          <p className="mt-1 text-xs text-secondary-500">
+            The primary Administrator role cannot be changed.
+          </p>
+        )}
         {errors.role && <p className="mt-1 text-xs text-danger-600">{errors.role.message}</p>}
 
         {/* Dynamic role capability info note */}
@@ -127,7 +141,7 @@ export function UserForm({ initialValues, existingUser, onSubmit, onCancel }: Us
           <label htmlFor="user-password" className="block text-sm font-medium text-secondary-700">
             {existingUser ? 'Password *' : 'Initial Password *'}
           </label>
-          {!existingUser && (
+          {SHOW_PASSWORD_GENERATOR && !existingUser && (
             <button
               type="button"
               onClick={generatePassword}

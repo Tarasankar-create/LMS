@@ -14,6 +14,7 @@ import { AdminLibrarianLayout } from '@/components/layout/AdminLibrarianLayout';
 import { StudentLayout } from '@/components/layout/StudentLayout';
 
 import { LoginPage } from '@/pages/auth/LoginPage';
+import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { BooksCataloguePage } from '@/pages/books/BooksCataloguePage';
 import { BookDetailsPage } from '@/pages/books/BookDetailsPage';
@@ -63,6 +64,7 @@ export function AppRoutes() {
 
       <Route element={<AuthLayout />}>
         <Route path={lmsRelative(ROUTES.login)} element={<LoginPage />} />
+        <Route path={lmsRelative(ROUTES.resetPassword)} element={<ResetPasswordPage />} />
       </Route>
 
       <Route

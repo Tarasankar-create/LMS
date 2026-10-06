@@ -3,12 +3,37 @@ import { z } from 'zod';
 export const USER_ASSIGNABLE_ROLES = ['admin', 'librarian', 'staff', 'principal'] as const;
 export type UserAssignableRole = (typeof USER_ASSIGNABLE_ROLES)[number];
 
+/** Roles that can be created/assigned to new staff members (Admin is a single master account). */
+export const USER_CREATABLE_ROLES = ['librarian', 'staff', 'principal'] as const;
+export type UserCreatableRole = (typeof USER_CREATABLE_ROLES)[number];
+
 export interface RoleOption {
   value: UserAssignableRole;
   label: string;
   badgeTone: 'primary' | 'accent' | 'warning' | 'success' | 'neutral';
   description: string;
 }
+
+export const CREATABLE_ROLES: RoleOption[] = [
+  {
+    value: 'librarian',
+    label: 'Librarian',
+    badgeTone: 'accent',
+    description: 'Full library administration: Circulation, catalogue management, student members, fines, and reports.',
+  },
+  {
+    value: 'staff',
+    label: 'Staff (College Staff)',
+    badgeTone: 'primary',
+    description: 'College teaching and non-teaching staff: Circulation desk operations (issue, return, renew books, handle reservations & inspect catalogue).',
+  },
+  {
+    value: 'principal',
+    label: 'Principal',
+    badgeTone: 'warning',
+    description: 'Executive institutional oversight: Read-only access to all reports, catalogue, and fine collections.',
+  },
+];
 
 export const ASSIGNABLE_ROLES: RoleOption[] = [
   {
@@ -58,3 +83,4 @@ export const userSchema = z.object({
 });
 
 export type UserFormValues = z.infer<typeof userSchema>;
+

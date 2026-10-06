@@ -1,22 +1,25 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Eye, EyeOff, GraduationCap, Landmark } from 'lucide-react';
+import { Eye, EyeOff, GraduationCap, Landmark, KeyRound } from 'lucide-react';
 import { loginSchema, type LoginFormValues } from '@/utils/validators/loginSchema';
 import { useAuthStore, type LoginKind } from '@/store/authStore';
 import { useAccessStore } from '@/access/accessStore';
 import { homePathFor } from '@/access/homePath';
 import { DEMO_LOGIN_HINTS } from '@/data/users';
 import { Button } from '@/components/common/Button';
-import { Modal } from '@/components/common/Modal';
+import { PasswordResetLinkModal } from '@/components/modals/PasswordResetLinkModal';
 import { cn } from '@/utils/cn';
 
 const TABS: { kind: LoginKind; label: string; hint: string; icon: typeof Landmark; usernameLabel: string; placeholder: string }[] = [
-  { kind: 'staff', label: 'Staff', hint: 'Administrator, Librarian', icon: Landmark, usernameLabel: 'Username', placeholder: 'e.g. librarian' },
+  { kind: 'staff', label: 'Staff', hint: 'Administrator, Librarian, Principal', icon: Landmark, usernameLabel: 'Username', placeholder: 'e.g. librarian' },
   { kind: 'student', label: 'Student', hint: 'College roll number', icon: GraduationCap, usernameLabel: 'Roll Number', placeholder: '2026001' },
 ];
+
+// Set to true to display the secondary reset password helper banner below the submit button
+const SHOW_RESET_BANNER = false;
 
 export function LoginPage() {
   const [searchParams] = useSearchParams();
@@ -25,7 +28,7 @@ export function LoginPage() {
   const initialKind: LoginKind = requested === 'student' ? 'student' : 'staff';
   const [activeKind, setActiveKind] = useState<LoginKind>(initialKind);
   const [showPassword, setShowPassword] = useState(false);
-  const [forgotOpen, setForgotOpen] = useState(false);
+  const [resetModalOpen, setResetModalOpen] = useState(false);
   const login = useAuthStore((s) => s.login);
   const lastUsername = useAuthStore((s) => s.lastUsername);
   const navigate = useNavigate();
@@ -34,6 +37,7 @@ export function LoginPage() {
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -133,14 +137,35 @@ export function LoginPage() {
             <input type="checkbox" {...register('rememberMe')} className="size-4 rounded border-secondary-300 text-primary-500 focus:ring-primary-400" />
             Remember me
           </label>
-          <button type="button" onClick={() => setForgotOpen(true)} className="text-sm font-medium text-primary-500 hover:text-primary-600">
-            Forgot password?
+          <button
+            type="button"
+            onClick={() => setResetModalOpen(true)}
+            className="text-sm font-semibold text-primary-600 hover:text-primary-700 hover:underline"
+          >
+            Reset password?
           </button>
         </div>
 
         <Button type="submit" className="w-full" size="lg" isLoading={isSubmitting}>
           Sign in as {activeTab.label}
         </Button>
+
+        {/* Highlighted Reset Password banner (hidden for now per request) */}
+        {SHOW_RESET_BANNER && (
+          <div className="rounded-lg border border-primary-200 bg-primary-50/70 p-3 text-center">
+            <p className="text-xs text-secondary-700">
+              Need to change your login credentials?
+            </p>
+            <button
+              type="button"
+              onClick={() => setResetModalOpen(true)}
+              className="mt-1 text-xs font-bold text-primary-700 hover:text-primary-800 hover:underline inline-flex items-center gap-1.5"
+            >
+              <KeyRound className="size-3.5" />
+              Click here to Reset Password
+            </button>
+          </div>
+        )}
       </form>
 
       <div className="mt-5 rounded-lg border border-dashed border-secondary-200 bg-secondary-50 p-3 text-xs text-secondary-500">
@@ -160,11 +185,12 @@ export function LoginPage() {
         </ul>
       </div>
 
-      <Modal isOpen={forgotOpen} onClose={() => setForgotOpen(false)} title="Forgot Password" footer={<Button onClick={() => setForgotOpen(false)}>Close</Button>}>
-        <p className="text-sm text-secondary-600">
-          Please contact the college administrator to reset your password. Self-service password reset is not available in this demo build.
-        </p>
-      </Modal>
+      {/* Password Reset Modal with username & old password verification + link generator */}
+      <PasswordResetLinkModal
+        isOpen={resetModalOpen}
+        onClose={() => setResetModalOpen(false)}
+        defaultUsername={watch('username')}
+      />
     </div>
   );
 }

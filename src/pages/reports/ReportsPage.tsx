@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Download, Printer, BookOpen, Users } from 'lucide-react';
+import { FileSpreadsheet, Printer, BookOpen, Users } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Button } from '@/components/common/Button';
 import { ChartCard } from '@/components/common/ChartCard';
@@ -12,7 +12,7 @@ import { useMembersStore } from '@/store/membersStore';
 import { useFinesStore } from '@/store/finesStore';
 import { BOOK_CATEGORIES } from '@/types';
 import { buildCategoryDistribution, buildDepartmentUsage, buildMonthlyCirculation } from '@/utils/circulationStats';
-import { exportToCsv } from '@/utils/csvExport';
+import { exportToExcel } from '@/utils/excelExport';
 import { formatCurrency } from '@/utils/currency';
 import { formatDate, overdueDays } from '@/utils/date';
 import { cn } from '@/utils/cn';
@@ -163,10 +163,10 @@ export function ReportsPage() {
     window.print();
   }
 
-  function handleExportCsv() {
+  function handleExportExcel() {
     switch (activeTab) {
       case 'Total Holdings':
-        exportToCsv(
+        exportToExcel(
           'total-holdings',
           [
             { header: 'Category', accessor: (r: (typeof holdingsByCategory)[number]) => r.category },
@@ -178,7 +178,7 @@ export function ReportsPage() {
         );
         break;
       case 'Department Holdings':
-        exportToCsv(
+        exportToExcel(
           'department-holdings',
           [
             { header: 'Department', accessor: (r: (typeof departmentHoldings)[number]) => r.department },
@@ -191,7 +191,7 @@ export function ReportsPage() {
         );
         break;
       case 'Available Books':
-        exportToCsv(
+        exportToExcel(
           'available-books',
           [
             { header: 'Accession No.', accessor: (b) => b.accessionNumber },
@@ -205,7 +205,7 @@ export function ReportsPage() {
         );
         break;
       case 'Asset Valuation':
-        exportToCsv(
+        exportToExcel(
           'asset-valuation',
           [
             { header: 'Category', accessor: (r) => r.category },
@@ -218,7 +218,7 @@ export function ReportsPage() {
         );
         break;
       case 'Currently Assigned Books':
-        exportToCsv(
+        exportToExcel(
           'assigned-books',
           [
             { header: 'Member', accessor: (l) => memberInfo(l.memberId).name },
@@ -233,7 +233,7 @@ export function ReportsPage() {
         );
         break;
       case 'Overdue Books':
-        exportToCsv(
+        exportToExcel(
           'overdue-books',
           [
             { header: 'Member', accessor: (l: (typeof overdueLoans)[number]) => memberInfo(l.memberId).name },
@@ -245,7 +245,7 @@ export function ReportsPage() {
         );
         break;
       case 'Fine Collection':
-        exportToCsv(
+        exportToExcel(
           'fine-collection',
           [
             { header: 'Member', accessor: (f: (typeof collectedFines)[number]) => f.memberName },
@@ -257,7 +257,7 @@ export function ReportsPage() {
         );
         break;
       case 'Department-wise Usage':
-        exportToCsv(
+        exportToExcel(
           'department-usage',
           [
             { header: 'Department', accessor: (d: (typeof departmentUsage)[number]) => d.department },
@@ -267,7 +267,7 @@ export function ReportsPage() {
         );
         break;
       default:
-        exportToCsv(
+        exportToExcel(
           'circulation-summary',
           [
             { header: 'Month', accessor: (m: (typeof monthly12)[number]) => m.month },
@@ -287,8 +287,8 @@ export function ReportsPage() {
         description="Compliance-ready reports for college administration."
         actions={
           <div className="no-print flex gap-2">
-            <Button variant="outline" onClick={handleExportCsv}>
-              <Download className="size-4" /> Export CSV
+            <Button variant="outline" onClick={handleExportExcel}>
+              <FileSpreadsheet className="size-4" /> Export Excel
             </Button>
             <Button variant="outline" onClick={handlePrint}>
               <Printer className="size-4" /> Print / Export PDF

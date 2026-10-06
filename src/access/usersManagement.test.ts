@@ -252,4 +252,24 @@ describe('Staff & User Management (Admin Module)', () => {
     const principalMeta = ASSIGNABLE_ROLES.find((r) => r.value === 'principal');
     expect(principalMeta?.label).toBe('Principal');
   });
+
+  it('prevents adding additional Admin accounts because only one Admin is permitted', async () => {
+    const { USER_CREATABLE_ROLES } = await import('@/utils/validators/userSchema');
+    // Creatable roles for adding users exclude Admin
+    expect(USER_CREATABLE_ROLES).toEqual(['librarian', 'staff', 'principal']);
+    expect(USER_CREATABLE_ROLES).not.toContain('admin');
+
+    const access = useAccessStore.getState();
+    const result = access.addUser({
+      name: 'Second Admin',
+      username: 'admin2',
+      password: 'password123',
+      role: 'admin',
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain('Only one Admin is permitted');
+    }
+  });
 });

@@ -18,4 +18,6 @@ export interface Notice {
   /** ISO date after which the notice is archived. */
   expiryDate?: string;
   createdBy: string;
+  /** If true, this notice serves as a default notice shown when all active notices are expired or none exist. */
+  isDefault?: boolean;
 }

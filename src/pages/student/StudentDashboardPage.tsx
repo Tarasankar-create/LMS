@@ -102,8 +102,17 @@ export function StudentDashboardPage() {
             <ul className="space-y-3">
               {recentNotices.map((notice) => (
                 <li key={notice.id} className="border-b border-secondary-50 pb-3 last:border-0 last:pb-0">
-                  <p className="text-sm font-medium text-ink">{notice.title}</p>
-                  <p className="text-xs text-secondary-500">{formatDate(notice.publishDate)}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-ink">{notice.title}</p>
+                    {notice.isDefault && (
+                      <Badge tone="accent" withDot={false}>
+                        Default
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-secondary-500">
+                    {notice.isDefault ? 'Standing Notice' : formatDate(notice.publishDate)}
+                  </p>
                 </li>
               ))}
             </ul>

@@ -9,6 +9,7 @@ export function lmsRelative(path: string): string {
 export const ROUTES = {
   lmsHome: '/',
   login: `${LMS_BASE}/login`,
+  resetPassword: `${LMS_BASE}/reset-password`,
   noAccess: `${LMS_BASE}/no-access`,
 
   dashboard: `${LMS_BASE}/dashboard`,

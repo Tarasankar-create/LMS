@@ -12,6 +12,7 @@ import { useCan } from '@/access/useCan';
 import { useMembersStore } from '@/store/membersStore';
 import { useLoansStore } from '@/store/loansStore';
 import { useFinesStore } from '@/store/finesStore';
+import { useAccessStore } from '@/access/accessStore';
 import { DEPARTMENTS } from '@/constants/departments';
 import { ROUTES } from '@/routes/routePaths';
 import type { Member, MemberStatus } from '@/types';
@@ -71,6 +72,7 @@ export function MembersPage() {
         joinDate: todayISO(),
       };
       addMember(newMember);
+      useAccessStore.getState().ensureStudentUserForMember(newMember);
       toast.success('Member added.');
     }
     setFormOpen(false);

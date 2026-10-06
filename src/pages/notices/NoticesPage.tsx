@@ -13,24 +13,35 @@ import { useCan } from '@/access/useCan';
 import { useAuthStore } from '@/store/authStore';
 import { isNoticeExpired, isNoticeLive, useNoticesStore } from '@/store/noticesStore';
 import { NOTICE_CATEGORIES, type Notice } from '@/types';
-import { formatDate, todayISO } from '@/utils/date';
+import { formatDate, todayISO, addDaysISO } from '@/utils/date';
 import { generateId } from '@/utils/id';
 
 type NoticeDraft = Omit<Notice, 'id'>;
 
 function blankNotice(createdBy: string): NoticeDraft {
-  return { title: '', content: '', category: 'Library Notices', publishDate: todayISO(), createdBy };
+  const today = todayISO();
+  return {
+    title: '',
+    content: '',
+    category: 'Library Notices',
+    publishDate: today,
+    expiryDate: addDaysISO(today, 30),
+    createdBy,
+    isDefault: false,
+  };
 }
 
 function validateNotice(n: NoticeDraft): string | null {
   if (!n.title.trim()) return 'Give the notice a title.';
   if (!n.content.trim()) return 'Write the notice text.';
   if (!n.publishDate) return 'Choose a publish date.';
+  if (!n.isDefault && !n.expiryDate) return 'Expiry date is a mandatory field.';
   if (n.expiryDate && n.expiryDate < n.publishDate) return 'The expiry date cannot be before the publish date.';
   return null;
 }
 
-function statusOf(n: Notice): { label: string; tone: 'success' | 'warning' | 'neutral' } {
+function statusOf(n: Notice): { label: string; tone: 'success' | 'warning' | 'neutral' | 'accent' } {
+  if (n.isDefault) return { label: 'Default Notice', tone: 'accent' };
   if (isNoticeExpired(n)) return { label: 'Expired', tone: 'neutral' };
   if (isNoticeLive(n)) return { label: 'Live', tone: 'success' };
   return { label: 'Scheduled', tone: 'warning' };
@@ -61,7 +72,7 @@ export function NoticesPage() {
   function openEdit(notice: Notice) {
     const { id, ...rest } = notice;
     void id;
-    setDraft(rest);
+    setDraft({ ...rest, isDefault: rest.isDefault ?? false });
     setEditingId(notice.id);
   }
 
@@ -71,13 +82,18 @@ export function NoticesPage() {
       toast.error(error);
       return;
     }
-    const clean = { ...draft, title: draft.title.trim(), content: draft.content.trim() };
+    const clean = {
+      ...draft,
+      title: draft.title.trim(),
+      content: draft.content.trim(),
+      isDefault: Boolean(draft.isDefault),
+    };
     if (editingId === 'new') {
       addNotice({ ...clean, id: generateId('notice') });
-      toast.success('Notice published.');
+      toast.success(clean.isDefault ? 'Default notice published.' : 'Notice published.');
     } else if (editingId) {
       updateNotice(editingId, clean);
-      toast.success('Notice updated.');
+      toast.success(clean.isDefault ? 'Default notice updated.' : 'Notice updated.');
     }
     setEditingId(null);
   }
@@ -99,7 +115,20 @@ export function NoticesPage() {
 
   const columns = useMemo<ColumnDef<Notice, unknown>[]>(
     () => [
-      { accessorKey: 'title', header: 'Notice', cell: ({ row }) => <span className="font-medium text-ink">{row.original.title}</span> },
+      {
+        accessorKey: 'title',
+        header: 'Notice',
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-ink">{row.original.title}</span>
+            {row.original.isDefault && (
+              <Badge tone="accent" withDot={false}>
+                Default
+              </Badge>
+            )}
+          </div>
+        ),
+      },
       { accessorKey: 'category', header: 'Category' },
       {
         id: 'status',
@@ -116,11 +145,14 @@ export function NoticesPage() {
         cell: ({ row }) => (
           <span className="whitespace-nowrap text-secondary-600">
             {formatDate(row.original.publishDate)}
-            {row.original.expiryDate && (
+            {row.original.expiryDate ? (
               <span className="block text-xs text-secondary-500">
+                {row.original.isDefault ? 'Default · ' : ''}
                 {isNoticeExpired(row.original) ? 'Expired' : 'Expires'} {formatDate(row.original.expiryDate)}
               </span>
-            )}
+            ) : row.original.isDefault ? (
+              <span className="block text-xs text-secondary-500">Standing (No expiry)</span>
+            ) : null}
           </span>
         ),
       },
@@ -196,11 +228,31 @@ export function NoticesPage() {
             <TextField type="date" label="Publish date" value={draft.publishDate} onChange={(publishDate) => setDraft({ ...draft, publishDate })} />
             <TextField
               type="date"
-              label="Expiry date (optional)"
+              label={draft.isDefault ? 'Expiry date (optional for default notice)' : 'Expiry date *'}
               value={draft.expiryDate ?? ''}
               onChange={(expiryDate) => setDraft({ ...draft, expiryDate: expiryDate || undefined })}
-              hint="After this date the notice is hidden from students."
+              hint={
+                draft.isDefault
+                  ? 'Default notices are displayed when all other notices have expired.'
+                  : 'Mandatory field. After this date the notice expires.'
+              }
             />
+          </div>
+          <div className="rounded-xl border border-secondary-200 bg-secondary-50/70 p-3.5">
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={draft.isDefault ?? false}
+                onChange={(e) => setDraft({ ...draft, isDefault: e.target.checked })}
+                className="mt-0.5 size-4 rounded border-secondary-300 text-primary-600 focus:ring-primary-500"
+              />
+              <div>
+                <span className="text-sm font-semibold text-ink">Set as Default Notice</span>
+                <p className="mt-0.5 text-xs text-secondary-600">
+                  When all notices are expired or no active notices are present, default notices will automatically be shown on the student portal and dashboard.
+                </p>
+              </div>
+            </label>
           </div>
         </div>
       </Modal>

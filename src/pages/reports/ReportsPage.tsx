@@ -1,19 +1,36 @@
-import { useMemo, useState } from 'react';
-import { FileSpreadsheet, Printer, BookOpen, Users, Calendar, ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  FileSpreadsheet,
+  Printer,
+  BookOpen,
+  Users,
+  Calendar,
+  ArrowDown,
+  ArrowUp,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  SlidersHorizontal,
+  ArrowUpDown,
+  RotateCcw,
+  X,
+} from 'lucide-react';
 import { addDays, differenceInCalendarDays, format, isValid, parseISO } from 'date-fns';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Button } from '@/components/common/Button';
+import { Modal } from '@/components/common/Modal';
 import { ChartCard } from '@/components/common/ChartCard';
 import { CategoryDistributionChart } from '@/components/charts/CategoryDistributionChart';
 import { MonthlyCirculationChart } from '@/components/charts/MonthlyCirculationChart';
-import { DepartmentUsageChart } from '@/components/charts/DepartmentUsageChart';
+import { CategoryUsageChart } from '@/components/charts/DepartmentUsageChart';
 import { useBooksStore } from '@/store/booksStore';
 import { useLoansStore } from '@/store/loansStore';
 import { useMembersStore } from '@/store/membersStore';
 import { useFinesStore } from '@/store/finesStore';
 import { useCopiesStore } from '@/store/copiesStore';
 import { BOOK_CATEGORIES } from '@/types';
-import { buildCategoryDistribution, buildDepartmentUsage, buildMonthlyCirculation } from '@/utils/circulationStats';
+import { buildCategoryDistribution, buildMonthlyCirculation } from '@/utils/circulationStats';
 import { exportToExcel } from '@/utils/excelExport';
 import { formatCurrency } from '@/utils/currency';
 import { formatDate, overdueDays, todayISO, addDaysISO } from '@/utils/date';
@@ -73,7 +90,7 @@ export const ASSIGNMENT_TABS = [
   'Usage Report',
   'Currently Assigned Books',
   'Overdue Books',
-  'Department-wise Usage',
+  'Category-wise Usage',
   'Fine Collection',
   'Circulation Trends',
 ] as const;
@@ -99,7 +116,6 @@ export function ReportsPage() {
   const [usageFromDate, setUsageFromDate] = useState(() => addDaysISO(todayISO(), -365));
   const [usageToDate, setUsageToDate] = useState(() => todayISO());
   const [selectedClassificationDrilldown, setSelectedClassificationDrilldown] = useState<string>('All');
-  const [drilldownPage, setDrilldownPage] = useState<number>(1);
 
   const books = useBooksStore((s) => s.books);
   const loans = useLoansStore((s) => s.loans);
@@ -193,18 +209,6 @@ export function ReportsPage() {
     return active.filter((b) => resolveBookClassification(b) === selectedClassificationDrilldown);
   }, [books, selectedClassificationDrilldown]);
 
-  const drilldownPageSize = 10;
-  const totalDrilldownRows = drilldownBooks.length;
-  const totalDrilldownPages = Math.max(1, Math.ceil(totalDrilldownRows / drilldownPageSize));
-  const safeDrilldownPage = Math.min(Math.max(1, drilldownPage), totalDrilldownPages);
-  const drilldownStartIdx = (safeDrilldownPage - 1) * drilldownPageSize;
-  const paginatedDrilldownBooks = useMemo(
-    () => drilldownBooks.slice(drilldownStartIdx, drilldownStartIdx + drilldownPageSize),
-    [drilldownBooks, drilldownStartIdx],
-  );
-  const drilldownFromRow = totalDrilldownRows === 0 ? 0 : drilldownStartIdx + 1;
-  const drilldownToRow = Math.min(totalDrilldownRows, drilldownStartIdx + drilldownPageSize);
-
   const categoryDistribution = useMemo(() => buildCategoryDistribution(books), [books]);
 
   const departmentHoldings = useMemo(() => {
@@ -231,7 +235,7 @@ export function ReportsPage() {
   }, [books]);
 
   const availableBooksList = useMemo(
-    () => books.filter((b) => b.status !== 'Retired' && b.availableCopies > 0).slice(0, 50),
+    () => books.filter((b) => b.status !== 'Retired' && b.availableCopies > 0),
     [books],
   );
 
@@ -283,15 +287,19 @@ export function ReportsPage() {
   );
 
   const collectedFines = useMemo(() => {
-    const memberMap = new Map(members.map((m) => [m.memberId, m.name]));
+    const memberMap = new Map(members.map((m) => [m.memberId, m]));
     const loanMap = new Map(loans.map((l) => [l.id, l.bookTitle]));
     return fines
       .filter((f) => f.status === 'Collected')
-      .map((f) => ({
-        ...f,
-        memberName: memberMap.get(f.memberId) ?? f.memberId,
-        bookTitle: loanMap.get(f.loanId) ?? '-',
-      }));
+      .map((f) => {
+        const mem = memberMap.get(f.memberId);
+        return {
+          ...f,
+          memberName: mem?.name ?? f.memberId,
+          department: mem?.department ?? '-',
+          bookTitle: loanMap.get(f.loanId) ?? '-',
+        };
+      });
   }, [fines, members, loans]);
 
   const collectedTotal = useMemo(
@@ -382,7 +390,48 @@ export function ReportsPage() {
     );
   }, [dailyCirculationData]);
 
-  const departmentUsage = useMemo(() => buildDepartmentUsage(loans, members), [loans, members]);
+  const categoryUsage = useMemo(() => {
+    const bookMap = new Map(books.map((b) => [b.id, b]));
+    const bookAccMap = new Map(books.map((b) => [b.accessionNumber, b]));
+
+    const counts: Record<'Science' | 'Commerce' | 'Arts' | 'Journals', number> = {
+      Science: 0,
+      Commerce: 0,
+      Arts: 0,
+      Journals: 0,
+    };
+
+    loans.forEach((loan) => {
+      const book = bookMap.get(loan.bookId) ?? bookAccMap.get(loan.accessionNumber);
+      if (book) {
+        const cls = resolveBookClassification(book);
+        if (cls === 'Science') counts.Science += 1;
+        else if (cls === 'Commerce') counts.Commerce += 1;
+        else if (cls === 'Arts') counts.Arts += 1;
+        else if (
+          cls === 'Journals & Magazines' ||
+          book.category === 'Journals and Magazines' ||
+          book.classification === 'Journals'
+        ) {
+          counts.Journals += 1;
+        } else {
+          counts.Science += 1;
+        }
+      } else {
+        const mem = members.find((m) => m.memberId === loan.memberId);
+        const dept = (mem?.department ?? '').toLowerCase();
+        if (dept.includes('commerce')) counts.Commerce += 1;
+        else if (dept.includes('art') || dept.includes('history') || dept.includes('polity')) counts.Arts += 1;
+        else counts.Science += 1;
+      }
+    });
+
+    return (['Science', 'Commerce', 'Arts', 'Journals'] as const).map((cat) => ({
+      category: cat,
+      department: cat,
+      loans: counts[cat],
+    }));
+  }, [loans, books, members]);
   const monthly12 = useMemo(() => buildMonthlyCirculation(loans, 12), [loans]);
 
   const usageStats = useMemo(() => {
@@ -493,6 +542,7 @@ export function ReportsPage() {
             { header: 'Title', accessor: (b) => b.title },
             { header: 'Author', accessor: (b) => b.author },
             { header: 'Category', accessor: (b) => b.category },
+            { header: 'Department', accessor: (b) => b.department ?? '-' },
             { header: 'Shelf', accessor: (b) => b.shelfLocation },
             { header: 'Available', accessor: (b) => b.availableCopies },
           ],
@@ -577,9 +627,12 @@ export function ReportsPage() {
           'overdue-books',
           [
             { header: 'Member', accessor: (l: (typeof overdueLoans)[number]) => memberInfo(l.memberId).name },
+            { header: 'Roll No.', accessor: (l) => memberInfo(l.memberId).roll },
+            { header: 'Department', accessor: (l) => memberInfo(l.memberId).department },
             { header: 'Book Title', accessor: (l) => l.bookTitle },
             { header: 'Accession No.', accessor: (l) => l.accessionNumber },
             { header: 'Due Date', accessor: (l) => l.dueDate },
+            { header: 'Days Overdue', accessor: (l) => overdueDays(l.dueDate) },
           ],
           overdueLoans,
         );
@@ -589,6 +642,7 @@ export function ReportsPage() {
           'fine-collection',
           [
             { header: 'Member', accessor: (f: (typeof collectedFines)[number]) => f.memberName },
+            { header: 'Department', accessor: (f: (typeof collectedFines)[number]) => f.department },
             { header: 'Book Title', accessor: (f) => f.bookTitle },
             { header: 'Amount', accessor: (f) => f.amount },
             { header: 'Collected Date', accessor: (f) => f.collectedDate ?? '' },
@@ -596,14 +650,14 @@ export function ReportsPage() {
           collectedFines,
         );
         break;
-      case 'Department-wise Usage':
+      case 'Category-wise Usage':
         exportToExcel(
-          'department-usage',
+          'category-usage',
           [
-            { header: 'Department', accessor: (d: (typeof departmentUsage)[number]) => d.department },
+            { header: 'Category', accessor: (d: (typeof categoryUsage)[number]) => d.category },
             { header: 'Books Borrowed', accessor: (d) => d.loans },
           ],
-          departmentUsage,
+          categoryUsage,
         );
         break;
       default:
@@ -773,6 +827,8 @@ export function ReportsPage() {
                   `${classificationTotals.utilizationRate}%`,
                 ],
               ]}
+              showPagination={false}
+              enableFilters={false}
             />
           </ChartCard>
 
@@ -784,10 +840,7 @@ export function ReportsPage() {
               <div className="no-print flex flex-wrap gap-1">
                 <button
                   type="button"
-                  onClick={() => {
-                    setSelectedClassificationDrilldown('All');
-                    setDrilldownPage(1);
-                  }}
+                  onClick={() => setSelectedClassificationDrilldown('All')}
                   className={cn(
                     'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
                     selectedClassificationDrilldown === 'All'
@@ -805,10 +858,7 @@ export function ReportsPage() {
                     <button
                       key={c}
                       type="button"
-                      onClick={() => {
-                        setSelectedClassificationDrilldown(c);
-                        setDrilldownPage(1);
-                      }}
+                      onClick={() => setSelectedClassificationDrilldown(c)}
                       className={cn(
                         'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
                         selectedClassificationDrilldown === c
@@ -835,7 +885,7 @@ export function ReportsPage() {
                 'Available / Total',
                 'Price',
               ]}
-              rows={paginatedDrilldownBooks.map((b) => [
+              rows={drilldownBooks.map((b) => [
                 b.accessionNumber,
                 b.title,
                 b.author,
@@ -847,57 +897,6 @@ export function ReportsPage() {
                 b.price ? formatCurrency(b.price) : '-',
               ])}
             />
-
-            {totalDrilldownRows > 0 && (
-              <div className="flex flex-col gap-3 border-t border-secondary-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs text-secondary-500">
-                  Showing <span className="font-medium text-ink">{drilldownFromRow}</span>–
-                  <span className="font-medium text-ink">{drilldownToRow}</span> of{' '}
-                  <span className="font-medium text-ink">{totalDrilldownRows}</span> titles
-                </p>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setDrilldownPage(1)}
-                    disabled={safeDrilldownPage <= 1}
-                    aria-label="First page"
-                  >
-                    <ChevronsLeft className="size-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setDrilldownPage((p) => Math.max(1, p - 1))}
-                    disabled={safeDrilldownPage <= 1}
-                    aria-label="Previous page"
-                  >
-                    <ChevronLeft className="size-4" />
-                  </Button>
-                  <span className="px-2 text-xs text-secondary-600">
-                    Page {safeDrilldownPage} of {totalDrilldownPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setDrilldownPage((p) => Math.min(totalDrilldownPages, p + 1))}
-                    disabled={safeDrilldownPage >= totalDrilldownPages}
-                    aria-label="Next page"
-                  >
-                    <ChevronRight className="size-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setDrilldownPage(totalDrilldownPages)}
-                    disabled={safeDrilldownPage >= totalDrilldownPages}
-                    aria-label="Last page"
-                  >
-                    <ChevronsRight className="size-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
           </ChartCard>
         </div>
       )}
@@ -926,12 +925,13 @@ export function ReportsPage() {
       {activeTab === 'Available Books' && (
         <ChartCard title={`Available Books on Shelf (${availableBooksList.length} shown)`}>
           <SimpleTable
-            columns={['Accession No.', 'Title', 'Author', 'Category', 'Shelf Location', 'Available Copies']}
+            columns={['Accession No.', 'Title', 'Author', 'Category', 'Department', 'Shelf Location', 'Available Copies']}
             rows={availableBooksList.map((b) => [
               b.accessionNumber,
               b.title,
               b.author,
               b.category,
+              b.department ?? '-',
               b.shelfLocation,
               b.availableCopies,
             ])}
@@ -987,99 +987,49 @@ export function ReportsPage() {
 
       {activeTab === 'Daily Circulation' && (
         <div className="space-y-4">
-          <div className="no-print flex flex-wrap items-center justify-between gap-3 rounded-xl border border-secondary-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-secondary-600">
-                <Calendar className="size-3.5 text-primary-600" />
-                Date Range:
+          <div className="no-print flex flex-wrap items-center justify-between gap-3 rounded-xl border border-secondary-200 bg-white p-3.5 shadow-2xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <Calendar className="size-4 text-primary-600" />
+              <span className="text-xs font-semibold text-ink">
+                Active Date Range: <span className="font-bold text-primary-700">{formatDate(dailyFromDate)} — {formatDate(dailyToDate)}</span>
               </span>
-              <div className="flex items-center gap-2">
-                <label className="text-xs font-medium text-secondary-600">From:</label>
-                <input
-                  type="date"
-                  value={dailyFromDate}
-                  onChange={(e) => setDailyFromDate(e.target.value)}
-                  className="rounded-lg border border-secondary-300 bg-white px-2.5 py-1.5 text-xs font-medium text-ink shadow-2xs focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs font-medium text-secondary-600">To:</label>
-                <input
-                  type="date"
-                  value={dailyToDate}
-                  onChange={(e) => setDailyToDate(e.target.value)}
-                  className="rounded-lg border border-secondary-300 bg-white px-2.5 py-1.5 text-xs font-medium text-ink shadow-2xs focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20"
-                />
-              </div>
+              <span className="text-xs text-secondary-500">
+                · Sorted: {dailySortOrder === 'desc' ? 'Newest First (Descending)' : 'Oldest First (Ascending)'}
+              </span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <label className="text-xs font-medium text-secondary-600">Sort Date:</label>
-                <div className="inline-flex rounded-lg border border-secondary-200 bg-secondary-50 p-0.5">
-                  <button
-                    type="button"
-                    onClick={() => setDailySortOrder('desc')}
-                    className={cn(
-                      'inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                      dailySortOrder === 'desc'
-                        ? 'bg-white font-semibold text-primary-700 shadow-2xs'
-                        : 'text-secondary-600 hover:text-ink',
-                    )}
-                    title="Sort Newest First (Descending)"
-                  >
-                    <ArrowDown className="size-3" />
-                    Descending
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDailySortOrder('asc')}
-                    className={cn(
-                      'inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                      dailySortOrder === 'asc'
-                        ? 'bg-white font-semibold text-primary-700 shadow-2xs'
-                        : 'text-secondary-600 hover:text-ink',
-                    )}
-                    title="Sort Oldest First (Ascending)"
-                  >
-                    <ArrowUp className="size-3" />
-                    Ascending
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDailyFromDate(addDaysISO(todayISO(), -7));
-                    setDailyToDate(todayISO());
-                  }}
-                  className="rounded-md border border-secondary-200 bg-secondary-50 px-2.5 py-1 text-xs font-medium text-secondary-700 hover:bg-secondary-100 transition-colors"
-                >
-                  Last 7 Days
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDailyFromDate(addDaysISO(todayISO(), -30));
-                    setDailyToDate(todayISO());
-                  }}
-                  className="rounded-md border border-secondary-200 bg-secondary-50 px-2.5 py-1 text-xs font-medium text-secondary-700 hover:bg-secondary-100 transition-colors"
-                >
-                  Last 30 Days
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDailyFromDate(addDaysISO(todayISO(), -90));
-                    setDailyToDate(todayISO());
-                  }}
-                  className="rounded-md border border-secondary-200 bg-secondary-50 px-2.5 py-1 text-xs font-medium text-secondary-700 hover:bg-secondary-100 transition-colors"
-                >
-                  Last 90 Days
-                </button>
-              </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-medium text-secondary-500 mr-1">Quick:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setDailyFromDate(addDaysISO(todayISO(), -7));
+                  setDailyToDate(todayISO());
+                }}
+                className="rounded-md border border-secondary-200 bg-secondary-50 px-2.5 py-1 text-xs font-medium text-secondary-700 hover:bg-secondary-100 transition-colors"
+              >
+                Last 7 Days
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDailyFromDate(addDaysISO(todayISO(), -30));
+                  setDailyToDate(todayISO());
+                }}
+                className="rounded-md border border-secondary-200 bg-secondary-50 px-2.5 py-1 text-xs font-medium text-secondary-700 hover:bg-secondary-100 transition-colors"
+              >
+                Last 30 Days
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDailyFromDate(addDaysISO(todayISO(), -90));
+                  setDailyToDate(todayISO());
+                }}
+                className="rounded-md border border-secondary-200 bg-secondary-50 px-2.5 py-1 text-xs font-medium text-secondary-700 hover:bg-secondary-100 transition-colors"
+              >
+                Last 90 Days
+              </button>
             </div>
           </div>
 
@@ -1114,6 +1064,22 @@ export function ReportsPage() {
                 d.renewals,
                 d.total,
               ])}
+              dateConfig={{
+                fromDate: dailyFromDate,
+                toDate: dailyToDate,
+                onApplyDateRange: (from, to) => {
+                  setDailyFromDate(from);
+                  setDailyToDate(to);
+                },
+                presets: [
+                  { label: 'Last 7 Days', days: 7 },
+                  { label: 'Last 30 Days', days: 30 },
+                  { label: 'Last 90 Days', days: 90 },
+                ],
+              }}
+              defaultSortColumn="Date"
+              defaultSortOrder={dailySortOrder}
+              onSortChange={(_col, order) => setDailySortOrder(order)}
             />
           </ChartCard>
         </div>
@@ -1121,30 +1087,12 @@ export function ReportsPage() {
 
       {activeTab === 'Usage Report' && (
         <div className="space-y-4">
-          <div className="no-print flex flex-wrap items-center justify-between gap-3 rounded-xl border border-secondary-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-secondary-600">
-                <Calendar className="size-3.5 text-primary-600" />
-                Calendar Range:
+          <div className="no-print flex flex-wrap items-center justify-between gap-3 rounded-xl border border-secondary-200 bg-white p-3.5 shadow-2xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <Calendar className="size-4 text-primary-600" />
+              <span className="text-xs font-semibold text-ink">
+                Active Calendar Window: <span className="font-bold text-primary-700">{formatDate(usageStats.start)} — {formatDate(usageStats.end)}</span>
               </span>
-              <div className="flex items-center gap-2">
-                <label className="text-xs font-medium text-secondary-600">From:</label>
-                <input
-                  type="date"
-                  value={usageFromDate}
-                  onChange={(e) => setUsageFromDate(e.target.value)}
-                  className="rounded-lg border border-secondary-300 bg-white px-2.5 py-1.5 text-xs font-medium text-ink shadow-2xs focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs font-medium text-secondary-600">To:</label>
-                <input
-                  type="date"
-                  value={usageToDate}
-                  onChange={(e) => setUsageToDate(e.target.value)}
-                  className="rounded-lg border border-secondary-300 bg-white px-2.5 py-1.5 text-xs font-medium text-ink shadow-2xs focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20"
-                />
-              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-1.5">
@@ -1190,16 +1138,26 @@ export function ReportsPage() {
               description="Top borrowed books ranked by issues during the selected date range."
             >
               <SimpleTable
-                columns={['Rank', 'Accession No.', 'Book Title', 'Author', 'Category', 'Total Copies', 'Times Issued']}
-                rows={usageStats.mostIssued.slice(0, 25).map((b, idx) => [
+                columns={['Rank', 'Accession No.', 'Book Title', 'Author', 'Category', 'Department', 'Total Copies', 'Times Issued']}
+                rows={usageStats.mostIssued.map((b, idx) => [
                   `#${idx + 1}`,
                   b.accessionNumber,
                   b.title,
                   b.author,
                   b.category,
+                  b.department,
                   b.totalCopies,
                   b.issueCount,
                 ])}
+                dateConfig={{
+                  fromDate: usageFromDate,
+                  toDate: usageToDate,
+                  onApplyDateRange: (from, to) => {
+                    setUsageFromDate(from);
+                    setUsageToDate(to);
+                  },
+                  presets: USAGE_PRESET_OPTIONS.map((p) => ({ label: p.label, days: p.days })),
+                }}
               />
             </ChartCard>
 
@@ -1208,16 +1166,26 @@ export function ReportsPage() {
               description="Books with lowest or zero circulation during the date range (useful for collection evaluation & weed-out decisions)."
             >
               <SimpleTable
-                columns={['Accession No.', 'Book Title', 'Author', 'Category', 'Shelf Location', 'Available Copies', 'Times Issued']}
-                rows={usageStats.leastIssued.slice(0, 25).map((b) => [
+                columns={['Accession No.', 'Book Title', 'Author', 'Category', 'Department', 'Shelf Location', 'Available Copies', 'Times Issued']}
+                rows={usageStats.leastIssued.map((b) => [
                   b.accessionNumber,
                   b.title,
                   b.author,
                   b.category,
+                  b.department,
                   b.shelfLocation,
                   b.availableCopies,
                   b.issueCount,
                 ])}
+                dateConfig={{
+                  fromDate: usageFromDate,
+                  toDate: usageToDate,
+                  onApplyDateRange: (from, to) => {
+                    setUsageFromDate(from);
+                    setUsageToDate(to);
+                  },
+                  presets: USAGE_PRESET_OPTIONS.map((p) => ({ label: p.label, days: p.days })),
+                }}
               />
             </ChartCard>
           </div>
@@ -1247,12 +1215,13 @@ export function ReportsPage() {
       {activeTab === 'Overdue Books' && (
         <ChartCard title={`Overdue Books Report (${overdueLoans.length})`}>
           <SimpleTable
-            columns={['Member Name', 'Roll No.', 'Book Title', 'Accession No.', 'Due Date', 'Days Overdue']}
+            columns={['Member Name', 'Roll No.', 'Department', 'Book Title', 'Accession No.', 'Due Date', 'Days Overdue']}
             rows={overdueLoans.map((l) => {
               const info = memberInfo(l.memberId);
               return [
                 info.name,
                 info.roll,
+                info.department,
                 l.bookTitle,
                 l.accessionNumber,
                 formatDate(l.dueDate),
@@ -1263,18 +1232,22 @@ export function ReportsPage() {
         </ChartCard>
       )}
 
-      {activeTab === 'Department-wise Usage' && (
-        <ChartCard title="Department-wise Student Library Usage">
-          <DepartmentUsageChart data={departmentUsage} />
+      {activeTab === 'Category-wise Usage' && (
+        <ChartCard
+          title="Category-wise Student Library Usage"
+          description="Total books borrowed across Science, Commerce, Arts, and Journals."
+        >
+          <CategoryUsageChart data={categoryUsage} />
         </ChartCard>
       )}
 
       {activeTab === 'Fine Collection' && (
         <ChartCard title={`Fine Collection Report — Total ${formatCurrency(collectedTotal)}`}>
           <SimpleTable
-            columns={['Member', 'Book Title', 'Amount', 'Collected Date']}
+            columns={['Member', 'Department', 'Book Title', 'Amount', 'Collected Date']}
             rows={collectedFines.map((f) => [
               f.memberName,
+              f.department,
               f.bookTitle,
               formatCurrency(f.amount),
               formatDate(f.collectedDate),
@@ -1292,34 +1265,833 @@ export function ReportsPage() {
   );
 }
 
-function SimpleTable({ columns, rows }: { columns: string[]; rows: (string | number)[][] }) {
+interface TableDateConfig {
+  fromDate?: string;
+  toDate?: string;
+  onApplyDateRange?: (from: string, to: string) => void;
+  presets?: { label: string; days: number }[];
+}
+
+interface SimpleTableProps {
+  columns: string[];
+  rows: (string | number)[][];
+  pageSize?: number;
+  showPagination?: boolean;
+  enableFilters?: boolean;
+  dateConfig?: TableDateConfig;
+  defaultSortColumn?: string;
+  defaultSortOrder?: 'asc' | 'desc';
+  onSortChange?: (column: string, order: 'asc' | 'desc') => void;
+}
+
+function extractDateISO(val: unknown): string | null {
+  if (typeof val !== 'string' || !val.trim() || val === '-') return null;
+  const str = val.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+    return str.slice(0, 10);
+  }
+  const timestamp = Date.parse(str);
+  if (!isNaN(timestamp)) {
+    const d = new Date(timestamp);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  return null;
+}
+
+function compareCells(a: string | number, b: string | number, order: 'asc' | 'desc'): number {
+  if (a === b) return 0;
+  if (a === '-' || a === null || a === undefined) return 1;
+  if (b === '-' || b === null || b === undefined) return -1;
+
+  if (typeof a === 'number' && typeof b === 'number') {
+    return order === 'asc' ? a - b : b - a;
+  }
+
+  const strA = String(a).trim();
+  const strB = String(b).trim();
+
+  // Strip ranking hashes like #1, currency like ₹450, commas, percentages
+  const cleanA = strA.replace(/^[#]/, '').replace(/[₹$,%]/g, '').trim();
+  const cleanB = strB.replace(/^[#]/, '').replace(/[₹$,%]/g, '').trim();
+  const numA = Number(cleanA);
+  const numB = Number(cleanB);
+  if (!isNaN(numA) && !isNaN(numB) && cleanA !== '' && cleanB !== '') {
+    return order === 'asc' ? numA - numB : numB - numA;
+  }
+
+  // Dates
+  const dateA = extractDateISO(strA);
+  const dateB = extractDateISO(strB);
+  if (dateA && dateB) {
+    return order === 'asc' ? dateA.localeCompare(dateB) : dateB.localeCompare(dateA);
+  }
+
+  // Strings
+  const cmp = strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
+  return order === 'asc' ? cmp : -cmp;
+}
+
+function SimpleTable({
+  columns,
+  rows,
+  pageSize = 10,
+  showPagination = true,
+  enableFilters = true,
+  dateConfig,
+  defaultSortColumn,
+  defaultSortOrder = 'asc',
+  onSortChange,
+}: SimpleTableProps) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+
+  // Applied Filter states
+  const [department, setDepartment] = useState('');
+  const [author, setAuthor] = useState('');
+  const [category, setCategory] = useState('');
+  const [status, setStatus] = useState('');
+  const [targetDateColName, setTargetDateColName] = useState('');
+  const [fromDate, setFromDate] = useState(dateConfig?.fromDate ?? '');
+  const [toDate, setToDate] = useState(dateConfig?.toDate ?? '');
+  const [sortColumn, setSortColumn] = useState(defaultSortColumn ?? (columns[0] || ''));
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(defaultSortOrder);
+
+  // Sync external dateConfig
+  useEffect(() => {
+    if (dateConfig?.fromDate !== undefined) setFromDate(dateConfig.fromDate);
+  }, [dateConfig?.fromDate]);
+
+  useEffect(() => {
+    if (dateConfig?.toDate !== undefined) setToDate(dateConfig.toDate);
+  }, [dateConfig?.toDate]);
+
+  useEffect(() => {
+    if (defaultSortColumn !== undefined) setSortColumn(defaultSortColumn);
+  }, [defaultSortColumn]);
+
+  useEffect(() => {
+    if (defaultSortOrder !== undefined) setSortOrder(defaultSortOrder);
+  }, [defaultSortOrder]);
+
+  // Modal temporary states
+  const [tempDepartment, setTempDepartment] = useState('');
+  const [tempAuthor, setTempAuthor] = useState('');
+  const [tempCategory, setTempCategory] = useState('');
+  const [tempStatus, setTempStatus] = useState('');
+  const [tempDateColName, setTempDateColName] = useState('');
+  const [tempFromDate, setTempFromDate] = useState('');
+  const [tempToDate, setTempToDate] = useState('');
+  const [tempSortColumn, setTempSortColumn] = useState('');
+  const [tempSortOrder, setTempSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  // Detect column indices
+  const deptColIdx = useMemo(() => columns.findIndex((c) => /department|stream/i.test(c)), [columns]);
+  const authorColIdx = useMemo(() => columns.findIndex((c) => /author/i.test(c)), [columns]);
+  const catColIdx = useMemo(() => columns.findIndex((c) => /category|classification/i.test(c)), [columns]);
+  const statusColIdx = useMemo(() => columns.findIndex((c) => /status|circulation type/i.test(c)), [columns]);
+  const dateColOptions = useMemo(() => columns.filter((c) => /date/i.test(c)), [columns]);
+
+  useEffect(() => {
+    if (!targetDateColName && dateColOptions.length > 0) {
+      setTargetDateColName(dateColOptions[0]);
+    }
+  }, [dateColOptions, targetDateColName]);
+
+  // Extract unique filter options from rows
+  const uniqueDepts = useMemo(() => {
+    if (deptColIdx === -1) return [];
+    return Array.from(new Set(rows.map((r) => String(r[deptColIdx] ?? '').trim())))
+      .filter((v) => v && v !== '-')
+      .sort();
+  }, [rows, deptColIdx]);
+
+  const uniqueAuthors = useMemo(() => {
+    if (authorColIdx === -1) return [];
+    return Array.from(new Set(rows.map((r) => String(r[authorColIdx] ?? '').trim())))
+      .filter((v) => v && v !== '-')
+      .sort();
+  }, [rows, authorColIdx]);
+
+  const uniqueCategories = useMemo(() => {
+    if (catColIdx === -1) return [];
+    return Array.from(new Set(rows.map((r) => String(r[catColIdx] ?? '').trim())))
+      .filter((v) => v && v !== '-')
+      .sort();
+  }, [rows, catColIdx]);
+
+  const uniqueStatuses = useMemo(() => {
+    if (statusColIdx === -1) return [];
+    return Array.from(new Set(rows.map((r) => String(r[statusColIdx] ?? '').trim())))
+      .filter((v) => v && v !== '-')
+      .sort();
+  }, [rows, statusColIdx]);
+
+  function handleOpenFilterModal() {
+    setTempDepartment(department);
+    setTempAuthor(author);
+    setTempCategory(category);
+    setTempStatus(status);
+    setTempDateColName(targetDateColName || (dateColOptions[0] ?? ''));
+    setTempFromDate(fromDate);
+    setTempToDate(toDate);
+    setTempSortColumn(sortColumn || (columns[0] ?? ''));
+    setTempSortOrder(sortOrder);
+    setIsFilterModalOpen(true);
+  }
+
+  function handleResetTempFilters() {
+    setTempDepartment('');
+    setTempAuthor('');
+    setTempCategory('');
+    setTempStatus('');
+    setTempFromDate(dateConfig ? (dateConfig.fromDate ?? '') : '');
+    setTempToDate(dateConfig ? (dateConfig.toDate ?? '') : '');
+    setTempSortColumn(defaultSortColumn ?? (columns[0] || ''));
+    setTempSortOrder(defaultSortOrder);
+  }
+
+  function handleApplyFilters() {
+    setDepartment(tempDepartment);
+    setAuthor(tempAuthor);
+    setCategory(tempCategory);
+    setStatus(tempStatus);
+    setTargetDateColName(tempDateColName);
+    setFromDate(tempFromDate);
+    setToDate(tempToDate);
+    setSortColumn(tempSortColumn);
+    setSortOrder(tempSortOrder);
+
+    if (dateConfig?.onApplyDateRange) {
+      dateConfig.onApplyDateRange(tempFromDate, tempToDate);
+    }
+    if (onSortChange && tempSortColumn) {
+      onSortChange(tempSortColumn, tempSortOrder);
+    }
+
+    setCurrentPage(1);
+    setIsFilterModalOpen(false);
+  }
+
+  function handleResetAllFilters() {
+    setDepartment('');
+    setAuthor('');
+    setCategory('');
+    setStatus('');
+    setFromDate(dateConfig ? (dateConfig.fromDate ?? '') : '');
+    setToDate(dateConfig ? (dateConfig.toDate ?? '') : '');
+    setSortColumn(defaultSortColumn ?? (columns[0] || ''));
+    setSortOrder(defaultSortOrder);
+
+    if (dateConfig?.onApplyDateRange && dateConfig.fromDate && dateConfig.toDate) {
+      dateConfig.onApplyDateRange(dateConfig.fromDate, dateConfig.toDate);
+    }
+    if (onSortChange && defaultSortColumn) {
+      onSortChange(defaultSortColumn, defaultSortOrder);
+    }
+    setCurrentPage(1);
+  }
+
+  // Active filter count
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (department) count++;
+    if (author) count++;
+    if (category) count++;
+    if (status) count++;
+    if (!dateConfig && (fromDate || toDate)) count++;
+    if (sortColumn && sortColumn !== (defaultSortColumn ?? columns[0])) count++;
+    if (sortOrder !== defaultSortOrder) count++;
+    return count;
+  }, [
+    department,
+    author,
+    category,
+    status,
+    fromDate,
+    toDate,
+    dateConfig,
+    sortColumn,
+    sortOrder,
+    defaultSortColumn,
+    defaultSortOrder,
+    columns,
+  ]);
+
+  const activeDateColIdx = useMemo(() => {
+    if (!targetDateColName) return dateColOptions.length > 0 ? columns.indexOf(dateColOptions[0]) : -1;
+    return columns.indexOf(targetDateColName);
+  }, [columns, targetDateColName, dateColOptions]);
+
+  // Filter rows
+  const filteredRows = useMemo(() => {
+    return rows.filter((row) => {
+      // 1. Department filter
+      if (department && deptColIdx !== -1) {
+        if (String(row[deptColIdx]).toLowerCase() !== department.toLowerCase()) {
+          return false;
+        }
+      }
+      // 2. Author filter
+      if (author && authorColIdx !== -1) {
+        if (String(row[authorColIdx]).toLowerCase() !== author.toLowerCase()) {
+          return false;
+        }
+      }
+      // 3. Category filter
+      if (category && catColIdx !== -1) {
+        if (String(row[catColIdx]).toLowerCase() !== category.toLowerCase()) {
+          return false;
+        }
+      }
+      // 4. Status filter
+      if (status && statusColIdx !== -1) {
+        if (String(row[statusColIdx]).toLowerCase() !== status.toLowerCase()) {
+          return false;
+        }
+      }
+      // 5. Row-level date filtering
+      if (!dateConfig?.onApplyDateRange && (fromDate || toDate) && activeDateColIdx !== -1) {
+        const cellDateISO = extractDateISO(row[activeDateColIdx]);
+        if (cellDateISO) {
+          if (fromDate && cellDateISO < fromDate) return false;
+          if (toDate && cellDateISO > toDate) return false;
+        }
+      }
+      return true;
+    });
+  }, [
+    rows,
+    department,
+    author,
+    category,
+    status,
+    deptColIdx,
+    authorColIdx,
+    catColIdx,
+    statusColIdx,
+    dateConfig,
+    fromDate,
+    toDate,
+    activeDateColIdx,
+  ]);
+
+  // Sort rows
+  const sortedRows = useMemo(() => {
+    if (!sortColumn) return filteredRows;
+    const colIdx = columns.indexOf(sortColumn);
+    if (colIdx === -1) return filteredRows;
+
+    return [...filteredRows].sort((rowA, rowB) => {
+      return compareCells(rowA[colIdx], rowB[colIdx], sortOrder);
+    });
+  }, [filteredRows, sortColumn, sortOrder, columns]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [rows, department, author, category, status, fromDate, toDate, sortColumn, sortOrder]);
+
   if (rows.length === 0) {
     return <p className="text-sm text-secondary-500">No data available for this report.</p>;
   }
+
+  const isPaginated = showPagination && sortedRows.length > pageSize;
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize));
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIdx = (safePage - 1) * pageSize;
+  const displayRows = isPaginated ? sortedRows.slice(startIdx, startIdx + pageSize) : sortedRows;
+  const fromRow = sortedRows.length === 0 ? 0 : startIdx + 1;
+  const toRow = Math.min(sortedRows.length, startIdx + pageSize);
+
+  const showDateFilterSection = Boolean(dateConfig || dateColOptions.length > 0);
+  const activePresets = dateConfig?.presets ?? [
+    { label: 'Last 7 Days', days: 7 },
+    { label: 'Last 30 Days', days: 30 },
+    { label: 'Last 90 Days', days: 90 },
+    { label: 'Last 1 Year', days: 365 },
+  ];
+
   return (
-    <div className="relative overflow-x-auto" role="region" aria-label="Report data" tabIndex={0}>
-      <table className="w-full min-w-[480px] text-left text-sm">
-        <thead>
-          <tr className="border-b border-secondary-100 text-xs uppercase text-secondary-500">
-            {columns.map((col) => (
-              <th key={col} className="px-3 py-2 font-semibold">
-                {col}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr key={i} className="border-b border-secondary-50 last:border-0 hover:bg-secondary-50/50">
-              {row.map((cell, j) => (
-                <td key={j} className="px-3 py-2 text-secondary-700">
-                  {cell}
-                </td>
+    <div className="space-y-3">
+      {/* Table Toolbar: Active Filters and Filter & Sort Trigger */}
+      {enableFilters && (
+        <div className="no-print flex flex-col gap-2 border-b border-secondary-100 pb-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            {activeFilterCount > 0 ? (
+              <>
+                <span className="font-semibold text-secondary-600">Filters:</span>
+                {department && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-primary-50 px-2 py-0.5 font-medium text-primary-700">
+                    Dept: {department}
+                    <button
+                      type="button"
+                      onClick={() => setDepartment('')}
+                      className="text-primary-400 hover:text-rose-600"
+                      aria-label="Remove department filter"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                )}
+                {author && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-purple-50 px-2 py-0.5 font-medium text-purple-700">
+                    Author: {author}
+                    <button
+                      type="button"
+                      onClick={() => setAuthor('')}
+                      className="text-purple-400 hover:text-rose-600"
+                      aria-label="Remove author filter"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                )}
+                {category && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">
+                    Category: {category}
+                    <button
+                      type="button"
+                      onClick={() => setCategory('')}
+                      className="text-emerald-400 hover:text-rose-600"
+                      aria-label="Remove category filter"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                )}
+                {status && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 font-medium text-amber-700">
+                    Status: {status}
+                    <button
+                      type="button"
+                      onClick={() => setStatus('')}
+                      className="text-amber-400 hover:text-rose-600"
+                      aria-label="Remove status filter"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                )}
+                {(fromDate || toDate) && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 font-medium text-blue-700">
+                    Date: {fromDate ? formatDate(fromDate) : 'Start'} – {toDate ? formatDate(toDate) : 'End'}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFromDate('');
+                        setToDate('');
+                        if (dateConfig?.onApplyDateRange) dateConfig.onApplyDateRange('', '');
+                      }}
+                      className="text-blue-400 hover:text-rose-600"
+                      aria-label="Remove date filter"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                )}
+                {sortColumn && (sortColumn !== (defaultSortColumn ?? columns[0]) || sortOrder !== defaultSortOrder) && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-secondary-100 px-2 py-0.5 font-medium text-secondary-700">
+                    Sorted: {sortColumn} ({sortOrder === 'asc' ? 'Asc' : 'Desc'})
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSortColumn(defaultSortColumn ?? (columns[0] || ''));
+                        setSortOrder(defaultSortOrder);
+                        if (onSortChange && defaultSortColumn) onSortChange(defaultSortColumn, defaultSortOrder);
+                      }}
+                      className="text-secondary-400 hover:text-rose-600"
+                      aria-label="Reset sort"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleResetAllFilters}
+                  className="ml-1 text-xs font-semibold text-rose-600 hover:text-rose-700 underline"
+                >
+                  Clear all
+                </button>
+              </>
+            ) : (
+              <span className="text-secondary-500">
+                Showing all <span className="font-semibold text-ink">{sortedRows.length}</span> records
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleOpenFilterModal}
+              className="gap-1.5 text-xs font-medium shadow-2xs"
+            >
+              <SlidersHorizontal className="size-3.5 text-primary-600" />
+              Filter & Sort
+              {activeFilterCount > 0 && (
+                <span className="rounded-full bg-primary-600 px-1.5 py-0.2 text-[10px] font-bold text-white">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Main Table or Empty State */}
+      {sortedRows.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-secondary-200 p-8 text-center">
+          <p className="text-sm font-semibold text-secondary-700">No records match the current filters.</p>
+          <p className="mt-1 text-xs text-secondary-500">Try adjusting your date range, department, author, or category filters.</p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleResetAllFilters}
+            className="mt-3 text-xs"
+          >
+            Reset All Filters
+          </Button>
+        </div>
+      ) : (
+        <div className="relative overflow-x-auto" role="region" aria-label="Report data" tabIndex={0}>
+          <table className="w-full min-w-[480px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-secondary-100 text-xs uppercase text-secondary-500">
+                {columns.map((col) => (
+                  <th key={col} className="px-3 py-2 font-semibold">
+                    <span className="inline-flex items-center gap-1">
+                      {col}
+                      {sortColumn === col && (
+                        <span className="text-primary-600">
+                          {sortOrder === 'asc' ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {displayRows.map((row, i) => (
+                <tr key={i} className="border-b border-secondary-50 last:border-0 hover:bg-secondary-50/50">
+                  {row.map((cell, j) => (
+                    <td key={j} className="px-3 py-2 text-secondary-700">
+                      {cell}
+                    </td>
+                  ))}
+                </tr>
               ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {isPaginated && (
+        <div className="no-print flex flex-col gap-3 border-t border-secondary-100 px-3 pt-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-secondary-500">
+            Showing <span className="font-medium text-ink">{fromRow}</span>–
+            <span className="font-medium text-ink">{toRow}</span> of{' '}
+            <span className="font-medium text-ink">{sortedRows.length}</span> rows
+            {sortedRows.length !== rows.length && (
+              <span className="text-secondary-400"> (filtered from {rows.length})</span>
+            )}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(1)}
+              disabled={safePage <= 1}
+              aria-label="First page"
+            >
+              <ChevronsLeft className="size-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={safePage <= 1}
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+            <span className="px-2 text-xs text-secondary-600">
+              Page {safePage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage >= totalPages}
+              aria-label="Next page"
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={safePage >= totalPages}
+              aria-label="Last page"
+            >
+              <ChevronsRight className="size-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Filter & Sort Popup Modal */}
+      {enableFilters && (
+        <Modal
+          isOpen={isFilterModalOpen}
+          onClose={() => setIsFilterModalOpen(false)}
+          title="Filter & Sort Data"
+          size="lg"
+          footer={
+            <div className="flex w-full items-center justify-between">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleResetTempFilters}
+                className="text-secondary-600 hover:text-rose-600"
+              >
+                <RotateCcw className="mr-1 size-3.5" />
+                Reset All
+              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsFilterModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={handleApplyFilters}
+                >
+                  Apply Filters
+                </Button>
+              </div>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            {/* 1. Calendar Date Range */}
+            {showDateFilterSection && (
+              <div className="space-y-3 rounded-xl border border-secondary-200 bg-secondary-50/60 p-3.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-secondary-700">
+                    <Calendar className="size-4 text-primary-600" />
+                    Calendar Date Range
+                  </span>
+                  {dateColOptions.length > 1 && !dateConfig?.onApplyDateRange && (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <span className="text-secondary-600">Field:</span>
+                      <select
+                        value={tempDateColName}
+                        onChange={(e) => setTempDateColName(e.target.value)}
+                        className="rounded-md border border-secondary-300 bg-white px-2 py-1 text-xs text-ink"
+                      >
+                        {dateColOptions.map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick Presets */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs font-medium text-secondary-500">Presets:</span>
+                  {activePresets.map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => {
+                        setTempFromDate(addDaysISO(todayISO(), -preset.days));
+                        setTempToDate(todayISO());
+                      }}
+                      className="rounded-md border border-secondary-200 bg-white px-2.5 py-1 text-xs font-medium text-secondary-700 hover:bg-secondary-100 transition-colors"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempFromDate('');
+                      setTempToDate('');
+                    }}
+                    className="rounded-md border border-secondary-200 bg-white px-2.5 py-1 text-xs font-medium text-secondary-500 hover:text-rose-600 transition-colors"
+                  >
+                    Clear Dates
+                  </button>
+                </div>
+
+                {/* Date Inputs */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-secondary-600">From Date</label>
+                    <input
+                      type="date"
+                      value={tempFromDate}
+                      onChange={(e) => setTempFromDate(e.target.value)}
+                      className="w-full rounded-lg border border-secondary-300 bg-white px-3 py-1.5 text-xs font-medium text-ink shadow-2xs focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-secondary-600">To Date</label>
+                    <input
+                      type="date"
+                      value={tempToDate}
+                      onChange={(e) => setTempToDate(e.target.value)}
+                      className="w-full rounded-lg border border-secondary-300 bg-white px-3 py-1.5 text-xs font-medium text-ink shadow-2xs focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 3. Categorical Attribute Dropdowns */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {uniqueDepts.length > 0 && (
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-secondary-700">Department</label>
+                  <select
+                    value={tempDepartment}
+                    onChange={(e) => setTempDepartment(e.target.value)}
+                    className="w-full rounded-lg border border-secondary-300 bg-white px-3 py-2 text-xs text-ink focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20"
+                  >
+                    <option value="">All Departments ({uniqueDepts.length})</option>
+                    {uniqueDepts.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {uniqueAuthors.length > 0 && (
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-secondary-700">Author</label>
+                  <select
+                    value={tempAuthor}
+                    onChange={(e) => setTempAuthor(e.target.value)}
+                    className="w-full rounded-lg border border-secondary-300 bg-white px-3 py-2 text-xs text-ink focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20"
+                  >
+                    <option value="">All Authors ({uniqueAuthors.length})</option>
+                    {uniqueAuthors.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {uniqueCategories.length > 0 && (
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-secondary-700">Classification / Category</label>
+                  <select
+                    value={tempCategory}
+                    onChange={(e) => setTempCategory(e.target.value)}
+                    className="w-full rounded-lg border border-secondary-300 bg-white px-3 py-2 text-xs text-ink focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20"
+                  >
+                    <option value="">All Categories ({uniqueCategories.length})</option>
+                    {uniqueCategories.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {uniqueStatuses.length > 0 && (
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-secondary-700">Status / Type</label>
+                  <select
+                    value={tempStatus}
+                    onChange={(e) => setTempStatus(e.target.value)}
+                    className="w-full rounded-lg border border-secondary-300 bg-white px-3 py-2 text-xs text-ink focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20"
+                  >
+                    <option value="">All Statuses ({uniqueStatuses.length})</option>
+                    {uniqueStatuses.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {/* 4. Sorting */}
+            <div className="space-y-2.5 rounded-xl border border-secondary-200 bg-secondary-50/60 p-3.5">
+              <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-secondary-700">
+                <ArrowUpDown className="size-4 text-primary-600" />
+                Sorting
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-secondary-600">Sort By Column</label>
+                  <select
+                    value={tempSortColumn}
+                    onChange={(e) => setTempSortColumn(e.target.value)}
+                    className="w-full rounded-lg border border-secondary-300 bg-white px-3 py-1.5 text-xs text-ink focus:border-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500/20"
+                  >
+                    {columns.map((col) => (
+                      <option key={col} value={col}>
+                        {col}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-secondary-600">Order Direction</label>
+                  <div className="inline-flex w-full rounded-lg border border-secondary-200 bg-secondary-100 p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setTempSortOrder('asc')}
+                      className={cn(
+                        'flex-1 rounded-md py-1 text-xs font-medium transition-colors text-center',
+                        tempSortOrder === 'asc' ? 'bg-white font-semibold text-primary-700 shadow-2xs' : 'text-secondary-600 hover:text-ink',
+                      )}
+                    >
+                      Ascending (A–Z / 0–9)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTempSortOrder('desc')}
+                      className={cn(
+                        'flex-1 rounded-md py-1 text-xs font-medium transition-colors text-center',
+                        tempSortOrder === 'desc' ? 'bg-white font-semibold text-primary-700 shadow-2xs' : 'text-secondary-600 hover:text-ink',
+                      )}
+                    >
+                      Descending (Z–A / 9–0)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

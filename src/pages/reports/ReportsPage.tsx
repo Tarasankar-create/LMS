@@ -12,7 +12,7 @@ import { useLoansStore } from '@/store/loansStore';
 import { useMembersStore } from '@/store/membersStore';
 import { useFinesStore } from '@/store/finesStore';
 import { useCopiesStore } from '@/store/copiesStore';
-import { BOOK_CATEGORIES } from '@/types';
+import { BOOK_CATEGORIES, BOOK_CLASSIFICATIONS } from '@/types';
 import { buildCategoryDistribution, buildDepartmentUsage, buildMonthlyCirculation } from '@/utils/circulationStats';
 import { exportToExcel } from '@/utils/excelExport';
 import { formatCurrency } from '@/utils/currency';
@@ -59,6 +59,7 @@ export function ReportsPage() {
   const [dailySortOrder, setDailySortOrder] = useState<'desc' | 'asc'>('desc');
   const [usageFromDate, setUsageFromDate] = useState(() => addDaysISO(todayISO(), -365));
   const [usageToDate, setUsageToDate] = useState(() => todayISO());
+  const [selectedClassificationDrilldown, setSelectedClassificationDrilldown] = useState<string>('All');
 
   const books = useBooksStore((s) => s.books);
   const loans = useLoansStore((s) => s.loans);
@@ -80,6 +81,100 @@ export function ReportsPage() {
       }),
     [books],
   );
+
+  const holdingsByClassification = useMemo(() => {
+    const lostDamagedByBookId = new Map<string, number>();
+    copies.forEach((c) => {
+      if (c.status === 'Lost' || c.status === 'Damaged' || c.status === 'Withdrawn') {
+        lostDamagedByBookId.set(c.bookId, (lostDamagedByBookId.get(c.bookId) ?? 0) + 1);
+      }
+    });
+
+    return BOOK_CLASSIFICATIONS.map((classification) => {
+      const matching = books.filter(
+        (b) =>
+          b.status !== 'Retired' &&
+          (b.classification === classification ||
+            b.classification?.replace(/\s+/g, '').toLowerCase() ===
+              classification.replace(/\s+/g, '').toLowerCase()),
+      );
+
+      const titles = matching.length;
+      const totalCopies = matching.reduce((sum, b) => sum + b.totalCopies, 0);
+      const availableCopies = matching.reduce((sum, b) => sum + b.availableCopies, 0);
+      const issuedCopies = Math.max(0, totalCopies - availableCopies);
+      const refTitles = matching.filter((b) => b.libraryUseOnly).length;
+      const refCopies = matching
+        .filter((b) => b.libraryUseOnly)
+        .reduce((sum, b) => sum + b.totalCopies, 0);
+
+      const lostDamagedCount = matching.reduce(
+        (sum, b) => sum + (lostDamagedByBookId.get(b.id) ?? 0),
+        0,
+      );
+
+      const totalValuation = matching.reduce((sum, b) => sum + (b.price ?? 0) * b.totalCopies, 0);
+      const avgPrice = totalCopies > 0 ? Math.round(totalValuation / totalCopies) : 0;
+      const utilizationRate = totalCopies > 0 ? ((issuedCopies / totalCopies) * 100).toFixed(1) : '0.0';
+
+      const departments = Array.from(
+        new Set(matching.map((b) => b.department).filter(Boolean)),
+      ) as string[];
+
+      return {
+        classification,
+        titles,
+        totalCopies,
+        availableCopies,
+        issuedCopies,
+        refTitles,
+        refCopies,
+        lostDamagedCount,
+        totalValuation,
+        avgPrice,
+        utilizationRate,
+        departments,
+        books: matching,
+      };
+    });
+  }, [books, copies]);
+
+  const classificationTotals = useMemo(() => {
+    const titles = holdingsByClassification.reduce((sum, r) => sum + r.titles, 0);
+    const totalCopies = holdingsByClassification.reduce((sum, r) => sum + r.totalCopies, 0);
+    const availableCopies = holdingsByClassification.reduce((sum, r) => sum + r.availableCopies, 0);
+    const issuedCopies = holdingsByClassification.reduce((sum, r) => sum + r.issuedCopies, 0);
+    const refTitles = holdingsByClassification.reduce((sum, r) => sum + r.refTitles, 0);
+    const refCopies = holdingsByClassification.reduce((sum, r) => sum + r.refCopies, 0);
+    const lostDamagedCount = holdingsByClassification.reduce((sum, r) => sum + r.lostDamagedCount, 0);
+    const totalValuation = holdingsByClassification.reduce((sum, r) => sum + r.totalValuation, 0);
+    const avgPrice = totalCopies > 0 ? Math.round(totalValuation / totalCopies) : 0;
+    const utilizationRate = totalCopies > 0 ? ((issuedCopies / totalCopies) * 100).toFixed(1) : '0.0';
+
+    return {
+      titles,
+      totalCopies,
+      availableCopies,
+      issuedCopies,
+      refTitles,
+      refCopies,
+      lostDamagedCount,
+      totalValuation,
+      avgPrice,
+      utilizationRate,
+    };
+  }, [holdingsByClassification]);
+
+  const drilldownBooks = useMemo(() => {
+    const active = books.filter((b) => b.status !== 'Retired');
+    if (selectedClassificationDrilldown === 'All') return active;
+    return active.filter(
+      (b) =>
+        b.classification === selectedClassificationDrilldown ||
+        b.classification?.replace(/\s+/g, '').toLowerCase() ===
+          selectedClassificationDrilldown.replace(/\s+/g, '').toLowerCase(),
+    );
+  }, [books, selectedClassificationDrilldown]);
 
   const categoryDistribution = useMemo(() => buildCategoryDistribution(books), [books]);
 
@@ -331,14 +426,21 @@ export function ReportsPage() {
     switch (activeTab) {
       case 'Total Holdings':
         exportToExcel(
-          'total-holdings',
+          'holdings-by-classification',
           [
-            { header: 'Category', accessor: (r: (typeof holdingsByCategory)[number]) => r.category },
-            { header: 'Titles', accessor: (r) => r.titles },
-            { header: 'Total Copies', accessor: (r) => r.totalCopies },
-            { header: 'Available Copies', accessor: (r) => r.availableCopies },
+            { header: 'Classification', accessor: (r: (typeof holdingsByClassification)[number]) => r.classification },
+            { header: 'Unique Titles', accessor: (r) => r.titles },
+            { header: 'Total Physical Copies', accessor: (r) => r.totalCopies },
+            { header: 'Available on Shelf', accessor: (r) => r.availableCopies },
+            { header: 'Currently Issued', accessor: (r) => r.issuedCopies },
+            { header: 'Reference Only Copies', accessor: (r) => r.refCopies },
+            { header: 'Lost / Damaged / Withdrawn', accessor: (r) => r.lostDamagedCount },
+            { header: 'Total Valuation (INR)', accessor: (r) => r.totalValuation },
+            { header: 'Average Price (INR)', accessor: (r) => r.avgPrice },
+            { header: 'Utilization Rate (%)', accessor: (r) => `${r.utilizationRate}%` },
+            { header: 'Departments Covered', accessor: (r) => r.departments.join(', ') || '-' },
           ],
-          holdingsByCategory,
+          holdingsByClassification,
         );
         break;
       case 'Department Holdings':
@@ -567,12 +669,174 @@ export function ReportsPage() {
 
       {/* --- CATALOG VIEW TAB CONTENTS --- */}
       {activeTab === 'Total Holdings' && (
-        <ChartCard title="Total Library Holdings by Category">
-          <SimpleTable
-            columns={['Category', 'Titles', 'Total Copies', 'Available Copies']}
-            rows={holdingsByCategory.map((r) => [r.category, r.titles, r.totalCopies, r.availableCopies])}
-          />
-        </ChartCard>
+        <div className="space-y-6">
+          {/* Summary Stat Cards */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="rounded-xl border border-secondary-100 bg-white p-3.5 shadow-2xs">
+              <p className="text-xs font-medium text-secondary-500">Unique Titles</p>
+              <p className="mt-1 text-xl font-bold text-ink">{classificationTotals.titles}</p>
+            </div>
+            <div className="rounded-xl border border-secondary-100 bg-white p-3.5 shadow-2xs">
+              <p className="text-xs font-medium text-secondary-500">Physical Copies</p>
+              <p className="mt-1 text-xl font-bold text-primary-700">{classificationTotals.totalCopies}</p>
+            </div>
+            <div className="rounded-xl border border-secondary-100 bg-white p-3.5 shadow-2xs">
+              <p className="text-xs font-medium text-secondary-500">Available on Shelf</p>
+              <p className="mt-1 text-xl font-bold text-emerald-600">{classificationTotals.availableCopies}</p>
+            </div>
+            <div className="rounded-xl border border-secondary-100 bg-white p-3.5 shadow-2xs">
+              <p className="text-xs font-medium text-secondary-500">Currently Issued</p>
+              <p className="mt-1 text-xl font-bold text-blue-600">{classificationTotals.issuedCopies}</p>
+            </div>
+            <div className="rounded-xl border border-secondary-100 bg-white p-3.5 shadow-2xs">
+              <p className="text-xs font-medium text-secondary-500">Reference Copies</p>
+              <p className="mt-1 text-xl font-bold text-purple-600">{classificationTotals.refCopies}</p>
+            </div>
+            <div className="rounded-xl border border-secondary-100 bg-white p-3.5 shadow-2xs">
+              <p className="text-xs font-medium text-secondary-500">Total Asset Value</p>
+              <p className="mt-1 text-xl font-bold text-ink">{formatCurrency(classificationTotals.totalValuation)}</p>
+            </div>
+          </div>
+
+          {/* Comprehensive Holdings by Classification Table */}
+          <ChartCard
+            title="Library Holdings by Classification (Official Scheme)"
+            description="Comprehensive breakdown across all 6 classifications: Course, Stream - Arts, Stream - Science, Journals, Current Affairs, Others."
+          >
+            <SimpleTable
+              columns={[
+                'Classification',
+                'Unique Titles',
+                'Total Copies',
+                'Available on Shelf',
+                'Currently Issued',
+                'Reference Only',
+                'Lost / Damaged',
+                'Total Valuation',
+                'Avg Price',
+                'Circulation %',
+              ]}
+              rows={[
+                ...holdingsByClassification.map((r) => [
+                  r.classification,
+                  r.titles,
+                  r.totalCopies,
+                  r.availableCopies,
+                  r.issuedCopies,
+                  r.refCopies > 0 ? `${r.refCopies} (${r.refTitles} tit.)` : '0',
+                  r.lostDamagedCount,
+                  formatCurrency(r.totalValuation),
+                  formatCurrency(r.avgPrice),
+                  `${r.utilizationRate}%`,
+                ]),
+                [
+                  'Total / Overall',
+                  classificationTotals.titles,
+                  classificationTotals.totalCopies,
+                  classificationTotals.availableCopies,
+                  classificationTotals.issuedCopies,
+                  classificationTotals.refCopies > 0
+                    ? `${classificationTotals.refCopies} (${classificationTotals.refTitles} tit.)`
+                    : '0',
+                  classificationTotals.lostDamagedCount,
+                  formatCurrency(classificationTotals.totalValuation),
+                  formatCurrency(classificationTotals.avgPrice),
+                  `${classificationTotals.utilizationRate}%`,
+                ],
+              ]}
+            />
+          </ChartCard>
+
+          {/* Classification Title Explorer Drill-Down */}
+          <ChartCard
+            title="Title-Level Catalogue Explorer by Classification"
+            description="Inspect individual books, shelf locations, and copies assigned to each classification."
+            actions={
+              <div className="no-print flex flex-wrap gap-1">
+                <button
+                  type="button"
+                  onClick={() => setSelectedClassificationDrilldown('All')}
+                  className={cn(
+                    'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                    selectedClassificationDrilldown === 'All'
+                      ? 'bg-primary-600 text-white shadow-2xs'
+                      : 'border border-secondary-200 bg-secondary-50 text-secondary-700 hover:bg-secondary-100',
+                  )}
+                >
+                  All ({books.filter((b) => b.status !== 'Retired').length})
+                </button>
+                {BOOK_CLASSIFICATIONS.map((c) => {
+                  const count = books.filter(
+                    (b) =>
+                      b.status !== 'Retired' &&
+                      (b.classification === c ||
+                        b.classification?.replace(/\s+/g, '').toLowerCase() ===
+                          c.replace(/\s+/g, '').toLowerCase()),
+                  ).length;
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setSelectedClassificationDrilldown(c)}
+                      className={cn(
+                        'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                        selectedClassificationDrilldown === c
+                          ? 'bg-primary-600 text-white shadow-2xs'
+                          : 'border border-secondary-200 bg-secondary-50 text-secondary-700 hover:bg-secondary-100',
+                      )}
+                    >
+                      {c} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+            }
+          >
+            <SimpleTable
+              columns={[
+                'Accession No.',
+                'Book Title',
+                'Author',
+                'Classification',
+                'Department',
+                'Shelf Location',
+                'Circulation Type',
+                'Available / Total',
+                'Price',
+              ]}
+              rows={drilldownBooks.slice(0, 50).map((b) => [
+                b.accessionNumber,
+                b.title,
+                b.author,
+                b.classification,
+                b.department ?? '-',
+                b.shelfLocation,
+                b.libraryUseOnly ? 'Reference Only' : 'Circulating',
+                `${b.availableCopies} / ${b.totalCopies}`,
+                b.price ? formatCurrency(b.price) : '-',
+              ])}
+            />
+          </ChartCard>
+
+          {/* Legacy Category Scheme */}
+          <ChartCard
+            title="Library Holdings by Category (Legacy Scheme)"
+            description="Grouped by traditional subject categories: Arts, Science, Commerce, Journals and Magazines"
+          >
+            <SimpleTable
+              columns={['Category', 'Title Count', 'Total Copies', 'Available Copies']}
+              rows={[
+                ...holdingsByCategory.map((r) => [r.category, r.titles, r.totalCopies, r.availableCopies]),
+                [
+                  'Total',
+                  holdingsByCategory.reduce((sum, r) => sum + r.titles, 0),
+                  holdingsByCategory.reduce((sum, r) => sum + r.totalCopies, 0),
+                  holdingsByCategory.reduce((sum, r) => sum + r.availableCopies, 0),
+                ],
+              ]}
+            />
+          </ChartCard>
+        </div>
       )}
 
       {activeTab === 'Books by Category' && (

@@ -4,26 +4,50 @@ import { BookMarked, Clock3, Megaphone, Wallet } from 'lucide-react';
 import { StatCard } from '@/components/common/StatCard';
 import { Badge } from '@/components/common/Badge';
 import { EmptyState } from '@/components/common/EmptyState';
-import { useAuthStore } from '@/store/authStore';
+import { StudentDashboardBanner } from '@/components/dashboard/StudentDashboardBanner';
 import { useCurrentMember } from '@/hooks/useCurrentMember';
 import { useLoansStore } from '@/store/loansStore';
 import { useFinesStore } from '@/store/finesStore';
+import { useReservationsStore } from '@/store/reservationsStore';
 import { selectLiveNotices, useNoticesStore } from '@/store/noticesStore';
 import { formatCurrency } from '@/utils/currency';
-import { formatDate, overdueDays } from '@/utils/date';
+import { formatDate, overdueDays, daysUntil } from '@/utils/date';
 import { ROUTES } from '@/routes/routePaths';
 
 export function StudentDashboardPage() {
-  const currentUser = useAuthStore((s) => s.currentUser);
   const member = useCurrentMember();
   const loans = useLoansStore((s) => s.loans);
   const fines = useFinesStore((s) => s.fines);
+  const reservations = useReservationsStore((s) => s.reservations);
   const allNotices = useNoticesStore((s) => s.notices);
 
   const activeLoans = useMemo(
     () => (member ? loans.filter((l) => l.memberId === member.memberId && l.status === 'Active') : []),
     [loans, member],
   );
+
+  const overdueLoans = useMemo(
+    () => activeLoans.filter((l) => overdueDays(l.dueDate) > 0),
+    [activeLoans],
+  );
+
+  const dueSoonLoans = useMemo(
+    () =>
+      activeLoans.filter((l) => {
+        const days = daysUntil(l.dueDate);
+        return days >= 0 && days <= 3;
+      }),
+    [activeLoans],
+  );
+
+  const readyReservations = useMemo(
+    () =>
+      member
+        ? reservations.filter((r) => r.memberId === member.memberId && r.status === 'Ready')
+        : [],
+    [reservations, member],
+  );
+
   const outstandingFine = useMemo(
     () => (member ? fines.filter((f) => f.memberId === member.memberId && f.status === 'Pending').reduce((s, f) => s + f.amount, 0) : 0),
     [fines, member],
@@ -40,11 +64,12 @@ export function StudentDashboardPage() {
   }
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-ink">Welcome back, {currentUser?.name.split(' ')[0]} 👋</h1>
-        <p className="mt-1 text-sm text-secondary-500">Here's what's happening with your library account.</p>
-      </div>
+    <div className="space-y-6">
+      <StudentDashboardBanner
+        overdueCount={overdueLoans.length}
+        dueSoonCount={dueSoonLoans.length}
+        readyReservationsCount={readyReservations.length}
+      />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard title="Books Issued" value={activeLoans.length} icon={BookMarked} accent="primary" />
@@ -52,7 +77,7 @@ export function StudentDashboardPage() {
           title="Next Due Date"
           value={activeLoans.length > 0 ? formatDate([...activeLoans].sort((a, b) => (a.dueDate > b.dueDate ? 1 : -1))[0].dueDate) : 'None'}
           icon={Clock3}
-          accent="accent"
+          accent={overdueLoans.length > 0 ? 'danger' : dueSoonLoans.length > 0 ? 'accent' : 'primary'}
         />
         <StatCard title="Outstanding Fine" value={formatCurrency(outstandingFine)} icon={Wallet} accent={outstandingFine > 0 ? 'danger' : 'success'} />
       </div>
@@ -122,3 +147,4 @@ export function StudentDashboardPage() {
     </div>
   );
 }
+

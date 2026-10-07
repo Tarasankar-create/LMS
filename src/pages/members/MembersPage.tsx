@@ -99,7 +99,7 @@ export function MembersPage() {
           canCreate && (
             <div className="flex items-center gap-2">
               <Button variant="outline" onClick={() => setBulkImportOpen(true)}>
-                <FileSpreadsheet className="size-4" /> Bulk Upload (Excel/CSV)
+                <FileSpreadsheet className="size-4" /> Upload (Excel/CSV)
               </Button>
               <Button onClick={openAddForm}>
                 <Plus className="size-4" /> Add Member

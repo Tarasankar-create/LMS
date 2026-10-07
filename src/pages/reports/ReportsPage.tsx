@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { FileSpreadsheet, Printer, BookOpen, Users, Calendar, ArrowDown, ArrowUp } from 'lucide-react';
+import { FileSpreadsheet, Printer, BookOpen, Users, Calendar, ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { addDays, differenceInCalendarDays, format, isValid, parseISO } from 'date-fns';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Button } from '@/components/common/Button';
@@ -12,12 +12,51 @@ import { useLoansStore } from '@/store/loansStore';
 import { useMembersStore } from '@/store/membersStore';
 import { useFinesStore } from '@/store/finesStore';
 import { useCopiesStore } from '@/store/copiesStore';
-import { BOOK_CATEGORIES, BOOK_CLASSIFICATIONS } from '@/types';
+import { BOOK_CATEGORIES } from '@/types';
 import { buildCategoryDistribution, buildDepartmentUsage, buildMonthlyCirculation } from '@/utils/circulationStats';
 import { exportToExcel } from '@/utils/excelExport';
 import { formatCurrency } from '@/utils/currency';
 import { formatDate, overdueDays, todayISO, addDaysISO } from '@/utils/date';
 import { cn } from '@/utils/cn';
+
+export const OFFICIAL_CLASSIFICATIONS = [
+  'Science',
+  'Commerce',
+  'Arts',
+  'Journals & Magazines',
+] as const;
+
+export type OfficialClassification = (typeof OFFICIAL_CLASSIFICATIONS)[number];
+
+export function resolveBookClassification(book: {
+  category?: string;
+  classification?: string;
+  department?: string;
+}): OfficialClassification {
+  if (
+    book.category === 'Journals and Magazines' ||
+    book.classification === 'Journals' ||
+    book.classification === 'Current Affairs'
+  ) {
+    return 'Journals & Magazines';
+  }
+  if (book.category === 'Science' || book.classification === 'Stream - Science') return 'Science';
+  if (book.category === 'Commerce') return 'Commerce';
+  if (book.category === 'Arts' || book.classification === 'Stream - Arts') return 'Arts';
+
+  const dept = (book.department ?? '').toLowerCase();
+  if (['physics', 'chemistry', 'mathematics', 'botany', 'zoology'].some((d) => dept.includes(d))) return 'Science';
+  if (['commerce', 'computer science', 'accounting', 'finance'].some((d) => dept.includes(d))) return 'Commerce';
+  if (
+    ['history', 'political science', 'odia', 'english', 'philosophy', 'sanskrit', 'sociology', 'education'].some(
+      (d) => dept.includes(d),
+    )
+  ) {
+    return 'Arts';
+  }
+
+  return 'Science';
+}
 
 export const CATALOG_TABS = [
   'Total Holdings',
@@ -60,6 +99,7 @@ export function ReportsPage() {
   const [usageFromDate, setUsageFromDate] = useState(() => addDaysISO(todayISO(), -365));
   const [usageToDate, setUsageToDate] = useState(() => todayISO());
   const [selectedClassificationDrilldown, setSelectedClassificationDrilldown] = useState<string>('All');
+  const [drilldownPage, setDrilldownPage] = useState<number>(1);
 
   const books = useBooksStore((s) => s.books);
   const loans = useLoansStore((s) => s.loans);
@@ -68,20 +108,6 @@ export function ReportsPage() {
   const copies = useCopiesStore((s) => s.copies);
 
   // --- CATALOG VIEW DATA ---
-  const holdingsByCategory = useMemo(
-    () =>
-      BOOK_CATEGORIES.map((category) => {
-        const inCategory = books.filter((b) => b.category === category && b.status !== 'Retired');
-        return {
-          category,
-          titles: inCategory.length,
-          totalCopies: inCategory.reduce((sum, b) => sum + b.totalCopies, 0),
-          availableCopies: inCategory.reduce((sum, b) => sum + b.availableCopies, 0),
-        };
-      }),
-    [books],
-  );
-
   const holdingsByClassification = useMemo(() => {
     const lostDamagedByBookId = new Map<string, number>();
     copies.forEach((c) => {
@@ -90,13 +116,9 @@ export function ReportsPage() {
       }
     });
 
-    return BOOK_CLASSIFICATIONS.map((classification) => {
+    return OFFICIAL_CLASSIFICATIONS.map((classification) => {
       const matching = books.filter(
-        (b) =>
-          b.status !== 'Retired' &&
-          (b.classification === classification ||
-            b.classification?.replace(/\s+/g, '').toLowerCase() ===
-              classification.replace(/\s+/g, '').toLowerCase()),
+        (b) => b.status !== 'Retired' && resolveBookClassification(b) === classification,
       );
 
       const titles = matching.length;
@@ -168,13 +190,20 @@ export function ReportsPage() {
   const drilldownBooks = useMemo(() => {
     const active = books.filter((b) => b.status !== 'Retired');
     if (selectedClassificationDrilldown === 'All') return active;
-    return active.filter(
-      (b) =>
-        b.classification === selectedClassificationDrilldown ||
-        b.classification?.replace(/\s+/g, '').toLowerCase() ===
-          selectedClassificationDrilldown.replace(/\s+/g, '').toLowerCase(),
-    );
+    return active.filter((b) => resolveBookClassification(b) === selectedClassificationDrilldown);
   }, [books, selectedClassificationDrilldown]);
+
+  const drilldownPageSize = 10;
+  const totalDrilldownRows = drilldownBooks.length;
+  const totalDrilldownPages = Math.max(1, Math.ceil(totalDrilldownRows / drilldownPageSize));
+  const safeDrilldownPage = Math.min(Math.max(1, drilldownPage), totalDrilldownPages);
+  const drilldownStartIdx = (safeDrilldownPage - 1) * drilldownPageSize;
+  const paginatedDrilldownBooks = useMemo(
+    () => drilldownBooks.slice(drilldownStartIdx, drilldownStartIdx + drilldownPageSize),
+    [drilldownBooks, drilldownStartIdx],
+  );
+  const drilldownFromRow = totalDrilldownRows === 0 ? 0 : drilldownStartIdx + 1;
+  const drilldownToRow = Math.min(totalDrilldownRows, drilldownStartIdx + drilldownPageSize);
 
   const categoryDistribution = useMemo(() => buildCategoryDistribution(books), [books]);
 
@@ -701,7 +730,7 @@ export function ReportsPage() {
           {/* Comprehensive Holdings by Classification Table */}
           <ChartCard
             title="Library Holdings by Classification (Official Scheme)"
-            description="Comprehensive breakdown across all 6 classifications: Course, Stream - Arts, Stream - Science, Journals, Current Affairs, Others."
+            description="Comprehensive breakdown across streams: Science, Commerce, Arts, and Journals & Magazines."
           >
             <SimpleTable
               columns={[
@@ -730,7 +759,7 @@ export function ReportsPage() {
                   `${r.utilizationRate}%`,
                 ]),
                 [
-                  'Total / Overall',
+                  'Total/Overall',
                   classificationTotals.titles,
                   classificationTotals.totalCopies,
                   classificationTotals.availableCopies,
@@ -750,12 +779,15 @@ export function ReportsPage() {
           {/* Classification Title Explorer Drill-Down */}
           <ChartCard
             title="Title-Level Catalogue Explorer by Classification"
-            description="Inspect individual books, shelf locations, and copies assigned to each classification."
+            description="Inspect individual books, shelf locations, and copies assigned to each classification (10 titles per page)."
             actions={
               <div className="no-print flex flex-wrap gap-1">
                 <button
                   type="button"
-                  onClick={() => setSelectedClassificationDrilldown('All')}
+                  onClick={() => {
+                    setSelectedClassificationDrilldown('All');
+                    setDrilldownPage(1);
+                  }}
                   className={cn(
                     'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
                     selectedClassificationDrilldown === 'All'
@@ -765,19 +797,18 @@ export function ReportsPage() {
                 >
                   All ({books.filter((b) => b.status !== 'Retired').length})
                 </button>
-                {BOOK_CLASSIFICATIONS.map((c) => {
+                {OFFICIAL_CLASSIFICATIONS.map((c) => {
                   const count = books.filter(
-                    (b) =>
-                      b.status !== 'Retired' &&
-                      (b.classification === c ||
-                        b.classification?.replace(/\s+/g, '').toLowerCase() ===
-                          c.replace(/\s+/g, '').toLowerCase()),
+                    (b) => b.status !== 'Retired' && resolveBookClassification(b) === c,
                   ).length;
                   return (
                     <button
                       key={c}
                       type="button"
-                      onClick={() => setSelectedClassificationDrilldown(c)}
+                      onClick={() => {
+                        setSelectedClassificationDrilldown(c);
+                        setDrilldownPage(1);
+                      }}
                       className={cn(
                         'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
                         selectedClassificationDrilldown === c
@@ -804,11 +835,11 @@ export function ReportsPage() {
                 'Available / Total',
                 'Price',
               ]}
-              rows={drilldownBooks.slice(0, 50).map((b) => [
+              rows={paginatedDrilldownBooks.map((b) => [
                 b.accessionNumber,
                 b.title,
                 b.author,
-                b.classification,
+                resolveBookClassification(b),
                 b.department ?? '-',
                 b.shelfLocation,
                 b.libraryUseOnly ? 'Reference Only' : 'Circulating',
@@ -816,25 +847,57 @@ export function ReportsPage() {
                 b.price ? formatCurrency(b.price) : '-',
               ])}
             />
-          </ChartCard>
 
-          {/* Legacy Category Scheme */}
-          <ChartCard
-            title="Library Holdings by Category (Legacy Scheme)"
-            description="Grouped by traditional subject categories: Arts, Science, Commerce, Journals and Magazines"
-          >
-            <SimpleTable
-              columns={['Category', 'Title Count', 'Total Copies', 'Available Copies']}
-              rows={[
-                ...holdingsByCategory.map((r) => [r.category, r.titles, r.totalCopies, r.availableCopies]),
-                [
-                  'Total',
-                  holdingsByCategory.reduce((sum, r) => sum + r.titles, 0),
-                  holdingsByCategory.reduce((sum, r) => sum + r.totalCopies, 0),
-                  holdingsByCategory.reduce((sum, r) => sum + r.availableCopies, 0),
-                ],
-              ]}
-            />
+            {totalDrilldownRows > 0 && (
+              <div className="flex flex-col gap-3 border-t border-secondary-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-secondary-500">
+                  Showing <span className="font-medium text-ink">{drilldownFromRow}</span>–
+                  <span className="font-medium text-ink">{drilldownToRow}</span> of{' '}
+                  <span className="font-medium text-ink">{totalDrilldownRows}</span> titles
+                </p>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDrilldownPage(1)}
+                    disabled={safeDrilldownPage <= 1}
+                    aria-label="First page"
+                  >
+                    <ChevronsLeft className="size-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDrilldownPage((p) => Math.max(1, p - 1))}
+                    disabled={safeDrilldownPage <= 1}
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft className="size-4" />
+                  </Button>
+                  <span className="px-2 text-xs text-secondary-600">
+                    Page {safeDrilldownPage} of {totalDrilldownPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDrilldownPage((p) => Math.min(totalDrilldownPages, p + 1))}
+                    disabled={safeDrilldownPage >= totalDrilldownPages}
+                    aria-label="Next page"
+                  >
+                    <ChevronRight className="size-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDrilldownPage(totalDrilldownPages)}
+                    disabled={safeDrilldownPage >= totalDrilldownPages}
+                    aria-label="Last page"
+                  >
+                    <ChevronsRight className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </ChartCard>
         </div>
       )}

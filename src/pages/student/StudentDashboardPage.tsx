@@ -9,6 +9,7 @@ import { useCurrentMember } from '@/hooks/useCurrentMember';
 import { useLoansStore } from '@/store/loansStore';
 import { useFinesStore } from '@/store/finesStore';
 import { useReservationsStore } from '@/store/reservationsStore';
+import { useSettingsStore } from '@/store/settingsStore';
 import { selectLiveNotices, useNoticesStore } from '@/store/noticesStore';
 import { formatCurrency } from '@/utils/currency';
 import { formatDate, overdueDays, daysUntil } from '@/utils/date';
@@ -20,6 +21,7 @@ export function StudentDashboardPage() {
   const fines = useFinesStore((s) => s.fines);
   const reservations = useReservationsStore((s) => s.reservations);
   const allNotices = useNoticesStore((s) => s.notices);
+  const dueReminderLeadDays = useSettingsStore((s) => s.settings.dueReminderLeadDays ?? 2);
 
   const activeLoans = useMemo(
     () => (member ? loans.filter((l) => l.memberId === member.memberId && l.status === 'Active') : []),
@@ -35,9 +37,9 @@ export function StudentDashboardPage() {
     () =>
       activeLoans.filter((l) => {
         const days = daysUntil(l.dueDate);
-        return days >= 0 && days <= 3;
+        return days >= 0 && days <= dueReminderLeadDays;
       }),
-    [activeLoans],
+    [activeLoans, dueReminderLeadDays],
   );
 
   const readyReservations = useMemo(

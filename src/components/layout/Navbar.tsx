@@ -6,6 +6,7 @@ import { useCan } from '@/access/useCan';
 import { useCurrentMember } from '@/hooks/useCurrentMember';
 import { useLoansStore } from '@/store/loansStore';
 import { useReservationsStore } from '@/store/reservationsStore';
+import { useSettingsStore } from '@/store/settingsStore';
 import type { ActivityItem } from '@/utils/activity';
 import { formatDate, overdueDays, daysUntil } from '@/utils/date';
 import { Avatar } from '@/components/common/Avatar';
@@ -33,6 +34,7 @@ export function Navbar({ title, onMenuClick, searchRoute, searchPlaceholder = 'S
   const member = useCurrentMember();
   const loans = useLoansStore((s) => s.loans);
   const reservations = useReservationsStore((s) => s.reservations);
+  const dueReminderLeadDays = useSettingsStore((s) => s.settings.dueReminderLeadDays ?? 2);
 
   const studentAlerts = useMemo(() => {
     if (currentUser?.role !== 'student' || !member) return null;
@@ -40,7 +42,7 @@ export function Navbar({ title, onMenuClick, searchRoute, searchPlaceholder = 'S
     const overdue = myActive.filter((l) => overdueDays(l.dueDate) > 0);
     const dueSoon = myActive.filter((l) => {
       const days = daysUntil(l.dueDate);
-      return days >= 0 && days <= 3;
+      return days >= 0 && days <= dueReminderLeadDays;
     });
     const ready = reservations.filter((r) => r.memberId === member.memberId && r.status === 'Ready');
     return {
@@ -49,7 +51,7 @@ export function Navbar({ title, onMenuClick, searchRoute, searchPlaceholder = 'S
       ready: ready.length,
       total: overdue.length + dueSoon.length + ready.length,
     };
-  }, [currentUser, member, loans, reservations]);
+  }, [currentUser, member, loans, reservations, dueReminderLeadDays]);
 
   const effectiveAlertCount = alertCount ?? (studentAlerts ? studentAlerts.total : 0);
 

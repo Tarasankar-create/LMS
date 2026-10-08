@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { Download, FileSpreadsheet, Upload, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
-import { exportToExcel } from '@/utils/excelExport';
+import { parseSpreadsheetFile, downloadExcelFile, createColumnResolver } from '@/utils/spreadsheet';
 import { useBooksStore } from '@/store/booksStore';
 import { useCopiesStore } from '@/store/copiesStore';
 import { BOOK_CLASSIFICATIONS, type Book, type BookClassification } from '@/types';
@@ -32,79 +32,75 @@ export function BulkImportModal({ isOpen, onClose }: BulkImportModalProps) {
   const addCopies = useCopiesStore((s) => s.addCopies);
 
   function handleDownloadTemplate() {
-    exportToExcel(
+    downloadExcelFile(
       'ps_college_catalogue_template',
       [
-        { header: 'AccessionNumber', accessor: (r: any) => r.accessionNumber },
-        { header: 'Title', accessor: (r: any) => r.title },
-        { header: 'Author', accessor: (r: any) => r.author },
-        { header: 'Subject', accessor: (r: any) => r.subject },
-        { header: 'Classification', accessor: (r: any) => r.classification },
-        { header: 'Publisher', accessor: (r: any) => r.publisher },
-        { header: 'Edition', accessor: (r: any) => r.edition },
-        { header: 'ISBN', accessor: (r: any) => r.isbn },
-        { header: 'Price', accessor: (r: any) => r.price },
-        { header: 'Copies', accessor: (r: any) => r.copies },
-        { header: 'ShelfLocation', accessor: (r: any) => r.shelfLocation },
-        { header: 'LibraryUseOnly', accessor: (r: any) => r.libraryUseOnly },
+        'AccessionNumber',
+        'Title',
+        'Author',
+        'Subject',
+        'Classification',
+        'Publisher',
+        'Edition',
+        'ISBN',
+        'Price',
+        'Copies',
+        'ShelfLocation',
+        'LibraryUseOnly',
       ],
       [
-        {
-          accessionNumber: 'PSC-9001',
-          title: 'History of Odisha',
-          author: 'N.K. Sahu',
-          subject: 'History',
-          classification: 'Stream - Arts',
-          publisher: 'Kalyani Publishers',
-          edition: '1st',
-          isbn: '978-81-234-5678-9',
-          price: 350,
-          copies: 5,
-          shelfLocation: 'A-105',
-          libraryUseOnly: false,
-        },
-        {
-          accessionNumber: 'PSC-9002',
-          title: 'Modern Physics',
-          author: 'Arthur Beiser',
-          subject: 'Physics',
-          classification: 'Stream - Science',
-          publisher: 'McGraw Hill',
-          edition: '6th',
-          isbn: '978-00-704-9553-1',
-          price: 520,
-          copies: 4,
-          shelfLocation: 'B-210',
-          libraryUseOnly: false,
-        },
-        {
-          accessionNumber: 'PSC-9003',
-          title: 'Yojana Magazine (Oct 2026)',
-          author: 'Govt of India',
-          subject: 'Current Affairs',
-          classification: 'Current Affairs',
-          publisher: 'Publication Division',
-          edition: '',
-          isbn: 'N/A',
-          price: 30,
-          copies: 3,
-          shelfLocation: 'REF-01',
-          libraryUseOnly: true,
-        },
+        [
+          'PSC-9001',
+          'History of Odisha',
+          'N.K. Sahu',
+          'History',
+          'Stream - Arts',
+          'Kalyani Publishers',
+          '1st',
+          '978-81-234-5678-9',
+          350,
+          5,
+          'A-105',
+          false,
+        ],
+        [
+          'PSC-9002',
+          'Modern Physics',
+          'Arthur Beiser',
+          'Physics',
+          'Stream - Science',
+          'McGraw Hill',
+          '6th',
+          '978-00-704-9553-1',
+          520,
+          4,
+          'B-210',
+          false,
+        ],
+        [
+          'PSC-9003',
+          'Yojana Magazine (Oct 2026)',
+          'Govt of India',
+          'Current Affairs',
+          'Current Affairs',
+          'Publication Division',
+          '',
+          'N/A',
+          30,
+          3,
+          'REF-01',
+          true,
+        ],
       ],
     );
   }
 
   function handleDownloadErrorReport() {
     if (errorsList.length === 0) return;
-    exportToExcel(
+    downloadExcelFile(
       'import_error_report',
-      [
-        { header: 'RowNumber', accessor: (err: RowError) => err.rowNumber },
-        { header: 'FailedData', accessor: (err: RowError) => err.data },
-        { header: 'Reason', accessor: (err: RowError) => err.reason },
-      ],
-      errorsList,
+      ['RowNumber', 'FailedData', 'Reason'],
+      errorsList.map((err) => [err.rowNumber, err.data, err.reason]),
     );
   }
 
@@ -115,101 +111,88 @@ export function BulkImportModal({ isOpen, onClose }: BulkImportModalProps) {
     }
 
     setIsProcessing(true);
-    const text = await file.text();
-    let dataRows: string[] = [];
-
-    if (text.includes('<Row')) {
-      const rowMatches = text.match(/<Row[\s\S]*?<\/Row>/gi) || [];
-      dataRows = rowMatches.slice(1).map((rowXml) => {
-        const cellMatches = rowXml.match(/<Data[\s\S]*?>([\s\S]*?)<\/Data>/gi) || [];
-        return cellMatches
-          .map((c) => c.replace(/<\/?Data[\s\S]*?>/gi, '').trim())
-          .join(',');
-      });
-    } else {
-      const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-      dataRows = lines.slice(1);
+    let parsed;
+    try {
+      parsed = await parseSpreadsheetFile(file);
+    } catch {
+      toast.error('Could not read the spreadsheet file. Please ensure it is a valid Excel or CSV file.');
+      setIsProcessing(false);
+      return;
     }
 
-    if (dataRows.length === 0) {
+    const { headers, rows } = parsed;
+    if (rows.length === 0) {
       toast.error('The selected file has no data rows.');
       setIsProcessing(false);
       return;
     }
+
+    const resolveCol = createColumnResolver(headers);
+    const colAcc = resolveCol(['accessionnumber', 'accno', 'accession', 'accnumber'], 0);
+    const colTitle = resolveCol(['title', 'booktitle'], 1);
+    const colAuthor = resolveCol(['author', 'authorname'], 2);
+    const colSubject = resolveCol(['subject'], 3);
+    const colClass = resolveCol(['classification', 'category'], 4);
+    const colPub = resolveCol(['publisher'], 5);
+    const colEd = resolveCol(['edition'], 6);
+    const colIsbn = resolveCol(['isbn'], 7);
+    const colPrice = resolveCol(['price', 'cost'], 8);
+    const colCopies = resolveCol(['copies', 'totalcopies', 'quantity', 'qty'], 9);
+    const colShelf = resolveCol(['shelflocation', 'shelf', 'location'], 10);
+    const colRefOnly = resolveCol(['libraryuseonly', 'refonly', 'referenceonly'], 11);
+
     const newErrors: RowError[] = [];
     const validBooksToAdd: Book[] = [];
     const existingAccessions = new Set(books.map((b) => b.accessionNumber.toUpperCase()));
     const batchAccessions = new Set<string>();
 
-    dataRows.forEach((row, idx) => {
+    rows.forEach((cells, idx) => {
       const rowNum = idx + 2; // account for header line
-      // Simple CSV cell parser handling commas inside quotes
-      const cells: string[] = [];
-      let current = '';
-      let insideQuotes = false;
-      for (let i = 0; i < row.length; i++) {
-        const char = row[i];
-        if (char === '"') {
-          insideQuotes = !insideQuotes;
-        } else if (char === ',' && !insideQuotes) {
-          cells.push(current.trim());
-          current = '';
-        } else {
-          current += char;
-        }
-      }
-      cells.push(current.trim());
+      const rowSummary = cells.join(', ');
 
-      const [
-        rawAcc,
-        rawTitle,
-        rawAuthor,
-        rawSubject,
-        rawClass,
-        rawPub,
-        rawEd,
-        rawIsbn,
-        rawPrice,
-        rawCopies,
-        rawShelf,
-        rawRefOnly,
-      ] = cells;
+      const acc = cells[colAcc]?.trim() || '';
+      const title = cells[colTitle]?.trim() || '';
+      const author = cells[colAuthor]?.trim() || '';
+      const subject = cells[colSubject]?.trim() || '';
+      const rawClass = cells[colClass]?.trim() || '';
+      const rawPub = cells[colPub]?.trim() || '';
+      const rawEd = cells[colEd]?.trim() || '';
+      const rawIsbn = cells[colIsbn]?.trim() || '';
+      const rawPrice = cells[colPrice]?.trim() || '';
+      const rawCopies = cells[colCopies]?.trim() || '';
+      const shelfLocation = cells[colShelf]?.trim() || '';
+      const rawRefOnly = cells[colRefOnly]?.trim() || '';
 
-      const acc = rawAcc?.trim() || '';
-      const title = rawTitle?.trim() || '';
-      const author = rawAuthor?.trim() || '';
-      const subject = rawSubject?.trim() || '';
-      const shelfLocation = rawShelf?.trim() || '';
-      const copiesNum = parseInt(rawCopies || '1', 10);
-      const priceNum = parseFloat(rawPrice || '0') || 0;
+      const cleanCopies = parseInt(rawCopies.replace(/\D/g, '') || '1', 10);
+      const cleanPrice = parseFloat(rawPrice.replace(/[^0-9.]/g, '') || '0') || 0;
 
       // Validation
       if (!acc) {
-        newErrors.push({ rowNumber: rowNum, data: row, reason: 'Missing required field: AccessionNumber' });
+        newErrors.push({ rowNumber: rowNum, data: rowSummary, reason: 'Missing required field: AccessionNumber' });
         return;
       }
       if (existingAccessions.has(acc.toUpperCase()) || batchAccessions.has(acc.toUpperCase())) {
-        newErrors.push({ rowNumber: rowNum, data: row, reason: `Duplicate AccessionNumber: ${acc}` });
+        newErrors.push({ rowNumber: rowNum, data: rowSummary, reason: `Duplicate AccessionNumber: ${acc}` });
         return;
       }
       if (!title) {
-        newErrors.push({ rowNumber: rowNum, data: row, reason: 'Missing required field: Title' });
+        newErrors.push({ rowNumber: rowNum, data: rowSummary, reason: 'Missing required field: Title' });
         return;
       }
       if (!author) {
-        newErrors.push({ rowNumber: rowNum, data: row, reason: 'Missing required field: Author' });
+        newErrors.push({ rowNumber: rowNum, data: rowSummary, reason: 'Missing required field: Author' });
         return;
       }
       if (!subject) {
-        newErrors.push({ rowNumber: rowNum, data: row, reason: 'Missing required field: Subject' });
+        newErrors.push({ rowNumber: rowNum, data: rowSummary, reason: 'Missing required field: Subject' });
         return;
       }
-      if (isNaN(copiesNum) || copiesNum < 1) {
-        newErrors.push({ rowNumber: rowNum, data: row, reason: 'Copies must be an integer of at least 1' });
+      if (isNaN(cleanCopies) || cleanCopies < 1) {
+        newErrors.push({ rowNumber: rowNum, data: rowSummary, reason: 'Copies must be an integer of at least 1' });
         return;
       }
       if (!shelfLocation) {
-        newErrors.push({ rowNumber: rowNum, data: row, reason: 'Missing required field: ShelfLocation' });
+        newErrors.push({ rowNumber: rowNum, data: rowSummary, reason: 'Missing required field: ShelfLocation' });
         return;
       }
 
@@ -229,6 +212,8 @@ export function BulkImportModal({ isOpen, onClose }: BulkImportModalProps) {
 
       batchAccessions.add(acc.toUpperCase());
 
+      const isRefOnly = ['true', 'yes', '1'].includes(rawRefOnly.toLowerCase());
+
       const book: Book = {
         id: generateId('book'),
         accessionNumber: acc,
@@ -244,14 +229,14 @@ export function BulkImportModal({ isOpen, onClose }: BulkImportModalProps) {
         classification,
         subject: subject || undefined,
         department: subject || undefined,
-        publisher: rawPub?.trim() || undefined,
-        edition: rawEd?.trim() || undefined,
-        isbn: rawIsbn?.trim() || undefined,
-        price: priceNum,
-        totalCopies: copiesNum,
-        availableCopies: copiesNum,
+        publisher: rawPub || undefined,
+        edition: rawEd || undefined,
+        isbn: rawIsbn || undefined,
+        price: cleanPrice,
+        totalCopies: cleanCopies,
+        availableCopies: cleanCopies,
         shelfLocation,
-        libraryUseOnly: rawRefOnly?.toLowerCase() === 'true' || rawRefOnly === '1',
+        libraryUseOnly: isRefOnly,
         status: 'Available',
         addedDate: todayISO(),
       };

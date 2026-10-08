@@ -7,7 +7,7 @@ import { useAccessStore } from '@/access/accessStore';
 import type { User, Role, UserStatus } from '@/types';
 import { generateId } from '@/utils/id';
 import { nowISO } from '@/utils/date';
-import { exportToExcel } from '@/utils/excelExport';
+import { parseSpreadsheetFile, downloadExcelFile, createColumnResolver } from '@/utils/spreadsheet';
 
 interface StaffBulkImportModalProps {
   isOpen: boolean;
@@ -79,35 +79,20 @@ export function StaffBulkImportModal({ isOpen, onClose }: StaffBulkImportModalPr
   }
 
   function handleDownloadTemplateExcel() {
-    exportToExcel(
+    downloadExcelFile(
       'ps_college_staff_template',
-      [
-        { header: 'Name', accessor: (r: (typeof sampleRows)[number]) => r.name },
-        { header: 'Role', accessor: (r) => r.role },
-        { header: 'Username', accessor: (r) => r.username },
-        { header: 'Password', accessor: (r) => r.password },
-        { header: 'Email', accessor: (r) => r.email },
-        { header: 'Phone', accessor: (r) => r.phone },
-        { header: 'Status', accessor: (r) => r.status },
-      ],
-      sampleRows,
+      ['Name', 'Role', 'Username', 'Password', 'Email', 'Phone', 'Status'],
+      sampleRows.map((r) => [r.name, r.role, r.username, r.password, r.email, r.phone, r.status]),
     );
   }
 
   function handleDownloadErrorReport() {
     if (errorsList.length === 0) return;
-    const headers = ['RowNumber', 'FailedData', 'Reason'];
-    const rows = errorsList.map(
-      (err) => `"${err.rowNumber}","${err.data.replace(/"/g, '""')}","${err.reason.replace(/"/g, '""')}"`,
+    downloadExcelFile(
+      'staff_import_error_report',
+      ['RowNumber', 'FailedData', 'Reason'],
+      errorsList.map((err) => [err.rowNumber, err.data, err.reason]),
     );
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', 'staff_import_error_report.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   }
 
   async function handleProcessImport() {
@@ -117,68 +102,66 @@ export function StaffBulkImportModal({ isOpen, onClose }: StaffBulkImportModalPr
     }
 
     setIsProcessing(true);
-    const text = await file.text();
-    const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    let parsed;
+    try {
+      parsed = await parseSpreadsheetFile(file);
+    } catch {
+      toast.error('Could not read the spreadsheet file. Please ensure it is a valid Excel or CSV file.');
+      setIsProcessing(false);
+      return;
+    }
 
-    if (lines.length <= 1) {
+    const { headers, rows } = parsed;
+    if (rows.length === 0) {
       toast.error('The selected file has no data rows.');
       setIsProcessing(false);
       return;
     }
 
-    const dataRows = lines.slice(1);
+    const resolveCol = createColumnResolver(headers);
+    const colName = resolveCol(['name', 'fullname', 'staffname'], 0);
+    const colRole = resolveCol(['role', 'designation'], 1);
+    const colUsername = resolveCol(['username', 'user'], 2);
+    const colPassword = resolveCol(['password', 'pass'], 3);
+    const colEmail = resolveCol(['email', 'emailid', 'mail'], 4);
+    const colPhone = resolveCol(['phone', 'phoneno', 'mobile', 'contact'], 5);
+    const colStatus = resolveCol(['status'], 6);
+
     const newErrors: RowError[] = [];
     const validUsersToAdd: User[] = [];
 
     const existingUsernames = new Set(users.map((u) => u.username.trim().toLowerCase()));
     const batchUsernames = new Set<string>();
 
-    dataRows.forEach((row, idx) => {
+    rows.forEach((cells, idx) => {
       const rowNum = idx + 2; // header offset
+      const rowSummary = cells.join(', ');
 
-      // Parse CSV handling quoted fields
-      const cells: string[] = [];
-      let current = '';
-      let insideQuotes = false;
-      for (let i = 0; i < row.length; i++) {
-        const char = row[i];
-        if (char === '"') {
-          insideQuotes = !insideQuotes;
-        } else if (char === ',' && !insideQuotes) {
-          cells.push(current.trim());
-          current = '';
-        } else {
-          current += char;
-        }
-      }
-      cells.push(current.trim());
-
-      const [rawName, rawRole, rawUsername, rawPassword, rawEmail, rawPhone, rawStatus] = cells;
-
-      const name = rawName?.trim() || '';
-      const roleStr = rawRole?.trim().toLowerCase() || '';
-      const username = rawUsername?.trim() || '';
-      const password = rawPassword?.trim() || '';
-      const email = rawEmail?.trim() || '';
-      const phone = rawPhone?.trim() || '';
-      const statusStr = rawStatus?.trim().toLowerCase() || 'active';
+      const name = cells[colName]?.trim() || '';
+      const rawRole = cells[colRole]?.trim() || '';
+      const roleStr = rawRole.toLowerCase();
+      const username = cells[colUsername]?.trim() || '';
+      const password = cells[colPassword]?.trim() || '';
+      const email = cells[colEmail]?.trim() || '';
+      const phone = cells[colPhone]?.trim() || '';
+      const statusStr = cells[colStatus]?.trim().toLowerCase() || 'active';
 
       // Validation 1: Name
       if (!name || name.length < 2) {
-        newErrors.push({ rowNumber: rowNum, data: row, reason: 'Full name must be at least 2 characters.' });
+        newErrors.push({ rowNumber: rowNum, data: rowSummary, reason: 'Full name must be at least 2 characters.' });
         return;
       }
 
       // Validation 2: Role
       if (!roleStr) {
-        newErrors.push({ rowNumber: rowNum, data: row, reason: 'Missing required field: Role.' });
+        newErrors.push({ rowNumber: rowNum, data: rowSummary, reason: 'Missing required field: Role.' });
         return;
       }
 
       if (roleStr === 'admin') {
         newErrors.push({
           rowNumber: rowNum,
-          data: row,
+          data: rowSummary,
           reason: "Role 'Admin' cannot be bulk uploaded. Only 1 Administrator is permitted in the system.",
         });
         return;
@@ -188,7 +171,7 @@ export function StaffBulkImportModal({ isOpen, onClose }: StaffBulkImportModalPr
       if (!matchedRole) {
         newErrors.push({
           rowNumber: rowNum,
-          data: row,
+          data: rowSummary,
           reason: `Invalid Role: "${rawRole}". Must be one of: librarian, staff, or principal.`,
         });
         return;
@@ -196,17 +179,17 @@ export function StaffBulkImportModal({ isOpen, onClose }: StaffBulkImportModalPr
 
       // Validation 3: Username
       if (!username) {
-        newErrors.push({ rowNumber: rowNum, data: row, reason: 'Missing required field: Username.' });
+        newErrors.push({ rowNumber: rowNum, data: rowSummary, reason: 'Missing required field: Username.' });
         return;
       }
       if (username.length < 3 || username.length > 30) {
-        newErrors.push({ rowNumber: rowNum, data: row, reason: 'Username must be between 3 and 30 characters.' });
+        newErrors.push({ rowNumber: rowNum, data: rowSummary, reason: 'Username must be between 3 and 30 characters.' });
         return;
       }
       if (!/^[a-zA-Z0-9._-]+$/.test(username)) {
         newErrors.push({
           rowNumber: rowNum,
-          data: row,
+          data: rowSummary,
           reason: 'Username can only contain letters, numbers, dots, hyphens, and underscores.',
         });
         return;
@@ -214,7 +197,7 @@ export function StaffBulkImportModal({ isOpen, onClose }: StaffBulkImportModalPr
 
       const lowerUsername = username.toLowerCase();
       if (existingUsernames.has(lowerUsername) || batchUsernames.has(lowerUsername)) {
-        newErrors.push({ rowNumber: rowNum, data: row, reason: `Username "@${username}" is already taken.` });
+        newErrors.push({ rowNumber: rowNum, data: rowSummary, reason: `Username "@${username}" is already taken.` });
         return;
       }
 
@@ -223,20 +206,20 @@ export function StaffBulkImportModal({ isOpen, onClose }: StaffBulkImportModalPr
       if (!finalPassword) {
         finalPassword = `${username}@2026`;
       } else if (finalPassword.length < 6) {
-        newErrors.push({ rowNumber: rowNum, data: row, reason: 'Password must be at least 6 characters.' });
+        newErrors.push({ rowNumber: rowNum, data: rowSummary, reason: 'Password must be at least 6 characters.' });
         return;
       }
 
       // Validation 5: Email format
       if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        newErrors.push({ rowNumber: rowNum, data: row, reason: `Invalid email address: "${email}".` });
+        newErrors.push({ rowNumber: rowNum, data: rowSummary, reason: `Invalid email address: "${email}".` });
         return;
       }
 
       // Validation 6: Phone
       const cleanPhone = phone ? phone.replace(/\D/g, '') : '';
       if (phone && cleanPhone.length !== 10) {
-        newErrors.push({ rowNumber: rowNum, data: row, reason: `Invalid phone: "${phone}". Must be a 10-digit number.` });
+        newErrors.push({ rowNumber: rowNum, data: rowSummary, reason: `Invalid phone: "${phone}". Must be a 10-digit number.` });
         return;
       }
 

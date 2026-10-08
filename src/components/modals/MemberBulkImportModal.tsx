@@ -3,9 +3,10 @@ import toast from 'react-hot-toast';
 import { Download, FileSpreadsheet, Upload, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
+import { parseSpreadsheetFile, downloadExcelFile, createColumnResolver } from '@/utils/spreadsheet';
 import { useMembersStore } from '@/store/membersStore';
 import { useAccessStore } from '@/access/accessStore';
-import { DEPARTMENTS} from '@/constants/departments';
+import { DEPARTMENTS } from '@/constants/departments';
 import type { Member, MemberStatus } from '@/types';
 import { generateId } from '@/utils/id';
 import { todayISO } from '@/utils/date';
@@ -31,36 +32,24 @@ export function MemberBulkImportModal({ isOpen, onClose }: MemberBulkImportModal
   const addMembers = useMembersStore((s) => s.addMembers);
 
   function handleDownloadTemplate() {
-    const headers = ['Name', 'RollNumber', 'Department', 'Email', 'Phone', 'Status'];
-    const sampleRows = [
-      'Ananya Mohapatra,2026201,Science,ananya.m@pscollege.ac.in,9437111001,Active',
-      'Subrat Panda,2026202,Commerce,subrat.p@pscollege.ac.in,9437111002,Active',
-      'Sunita Behera,2026203,Arts,sunita.b@pscollege.ac.in,9437111003,Active',
-    ];
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...sampleRows].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', 'ps_college_students_template.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadExcelFile(
+      'ps_college_students_template',
+      ['Name', 'RollNumber', 'Department', 'Email', 'Phone', 'Status'],
+      [
+        ['Ananya Mohapatra', '2026201', 'Science', 'ananya.m@pscollege.ac.in', '9437111001', 'Active'],
+        ['Subrat Panda', '2026202', 'Commerce', 'subrat.p@pscollege.ac.in', '9437111002', 'Active'],
+        ['Sunita Behera', '2026203', 'Arts', 'sunita.b@pscollege.ac.in', '9437111003', 'Active'],
+      ],
+    );
   }
 
   function handleDownloadErrorReport() {
     if (errorsList.length === 0) return;
-    const headers = ['RowNumber', 'FailedData', 'Reason'];
-    const rows = errorsList.map((err) =>
-      `"${err.rowNumber}","${err.data.replace(/"/g, '""')}","${err.reason.replace(/"/g, '""')}"`
+    downloadExcelFile(
+      'student_import_error_report',
+      ['RowNumber', 'FailedData', 'Reason'],
+      errorsList.map((err) => [err.rowNumber, err.data, err.reason]),
     );
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', 'student_import_error_report.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   }
 
   async function handleProcessImport() {
@@ -70,69 +59,65 @@ export function MemberBulkImportModal({ isOpen, onClose }: MemberBulkImportModal
     }
 
     setIsProcessing(true);
-    const text = await file.text();
-    const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    let parsed;
+    try {
+      parsed = await parseSpreadsheetFile(file);
+    } catch {
+      toast.error('Could not read the spreadsheet file. Please ensure it is a valid Excel or CSV file.');
+      setIsProcessing(false);
+      return;
+    }
 
-    if (lines.length <= 1) {
+    const { headers, rows } = parsed;
+    if (rows.length === 0) {
       toast.error('The selected file has no student data rows.');
       setIsProcessing(false);
       return;
     }
 
-    const dataRows = lines.slice(1);
+    const resolveCol = createColumnResolver(headers);
+    const colName = resolveCol(['name', 'fullname', 'studentname'], 0);
+    const colRoll = resolveCol(['rollnumber', 'rollno', 'roll'], 1);
+    const colDept = resolveCol(['department', 'dept', 'stream'], 2);
+    const colEmail = resolveCol(['email', 'emailid', 'mail'], 3);
+    const colPhone = resolveCol(['phone', 'phoneno', 'mobile', 'contact'], 4);
+    const colStatus = resolveCol(['status'], 5);
+
     const newErrors: RowError[] = [];
     const validMembersToAdd: Member[] = [];
     const existingRolls = new Set(members.map((m) => m.rollNumber.trim().toUpperCase()));
     const batchRolls = new Set<string>();
 
-        let nextNumber = members.length + 1001;
+    let nextNumber = members.length + 1001;
 
-    dataRows.forEach((row, idx) => {
+    rows.forEach((cells, idx) => {
       const rowNum = idx + 2; // header offset
+      const rowSummary = cells.join(', ');
 
-      // Parse CSV handling quoted fields
-      const cells: string[] = [];
-      let current = '';
-      let insideQuotes = false;
-      for (let i = 0; i < row.length; i++) {
-        const char = row[i];
-        if (char === '"') {
-          insideQuotes = !insideQuotes;
-        } else if (char === ',' && !insideQuotes) {
-          cells.push(current.trim());
-          current = '';
-        } else {
-          current += char;
-        }
-      }
-      cells.push(current.trim());
-
-      const [rawName, rawRoll, rawDept, rawEmail, rawPhone, rawStatus] = cells;
-
-      const name = rawName?.trim() || '';
-      const rollNumber = rawRoll?.trim() || '';
-      const rawDeptVal = rawDept?.trim() || '';
-      const email = rawEmail?.trim() || '';
-      const phone = rawPhone?.trim() || '';
-      const rawStatusVal = rawStatus?.trim() || 'Active';
+      const name = cells[colName]?.trim() || '';
+      const rollNumber = cells[colRoll]?.trim() || '';
+      const rawDeptVal = cells[colDept]?.trim() || '';
+      const email = cells[colEmail]?.trim() || '';
+      const phone = cells[colPhone]?.trim() || '';
+      const rawStatusVal = cells[colStatus]?.trim() || 'Active';
 
       // Validation
       if (!name) {
-        newErrors.push({ rowNumber: rowNum, data: row, reason: 'Missing required field: Name' });
+        newErrors.push({ rowNumber: rowNum, data: rowSummary, reason: 'Missing required field: Name' });
         return;
       }
       if (!rollNumber) {
-        newErrors.push({ rowNumber: rowNum, data: row, reason: 'Missing required field: RollNumber' });
+        newErrors.push({ rowNumber: rowNum, data: rowSummary, reason: 'Missing required field: RollNumber' });
         return;
       }
       const upperRoll = rollNumber.toUpperCase();
       if (existingRolls.has(upperRoll) || batchRolls.has(upperRoll)) {
-        newErrors.push({ rowNumber: rowNum, data: row, reason: `Duplicate Roll Number: ${rollNumber}` });
+        newErrors.push({ rowNumber: rowNum, data: rowSummary, reason: `Duplicate Roll Number: ${rollNumber}` });
         return;
       }
 
       if (!rawDeptVal) {
-        newErrors.push({ rowNumber: rowNum, data: row, reason: 'Missing required field: Department' });
+        newErrors.push({ rowNumber: rowNum, data: rowSummary, reason: 'Missing required field: Department' });
         return;
       }
 
@@ -141,27 +126,28 @@ export function MemberBulkImportModal({ isOpen, onClose }: MemberBulkImportModal
       if (!matchedDept) {
         newErrors.push({
           rowNumber: rowNum,
-          data: row,
+          data: rowSummary,
           reason: `Invalid Department: "${rawDeptVal}". Must be one of: ${DEPARTMENTS.join(', ')}`,
         });
         return;
       }
 
       // Validate phone if provided
-      if (phone && !/^\d{10}$/.test(phone.replace(/\D/g, ''))) {
+      const cleanPhone = phone ? phone.replace(/\D/g, '') : '';
+      if (cleanPhone && cleanPhone.length !== 10) {
         newErrors.push({
           rowNumber: rowNum,
-          data: row,
+          data: rowSummary,
           reason: `Invalid Phone: "${phone}". Must be a 10-digit mobile number.`,
         });
         return;
       }
 
       // Validate email format if provided
-      if (email && !/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
+      if (email && !/^[\w.-]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
         newErrors.push({
           rowNumber: rowNum,
-          data: row,
+          data: rowSummary,
           reason: `Invalid Email address: "${email}".`,
         });
         return;
@@ -181,7 +167,7 @@ export function MemberBulkImportModal({ isOpen, onClose }: MemberBulkImportModal
         rollNumber,
         department: matchedDept,
         email: email || `${rollNumber}@pscollege.ac.in`,
-        phone: phone ? phone.replace(/\D/g, '') : '9437000000',
+        phone: cleanPhone || '9437000000',
         status,
         joinDate: todayISO(),
       };

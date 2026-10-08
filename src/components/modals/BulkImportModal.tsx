@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { Download, FileSpreadsheet, Upload, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
+import { exportToExcel } from '@/utils/excelExport';
 import { useBooksStore } from '@/store/booksStore';
 import { useCopiesStore } from '@/store/copiesStore';
 import { BOOK_CLASSIFICATIONS, type Book, type BookClassification } from '@/types';
@@ -27,72 +28,114 @@ export function BulkImportModal({ isOpen, onClose }: BulkImportModalProps) {
   const [errorsList, setErrorsList] = useState<RowError[]>([]);
 
   const books = useBooksStore((s) => s.books);
-  const addBook = useBooksStore((s) => s.addBook);
+  const addBooks = useBooksStore((s) => s.addBooks);
   const addCopies = useCopiesStore((s) => s.addCopies);
 
   function handleDownloadTemplate() {
-    const headers = [
-      'AccessionNumber',
-      'Title',
-      'Author',
-      'Subject',
-      'Classification',
-      'Publisher',
-      'Edition',
-      'ISBN',
-      'Price',
-      'Copies',
-      'ShelfLocation',
-      'LibraryUseOnly',
-    ];
-    const sampleRows = [
-      'PSC-9001,History of Odisha,N.K. Sahu,History,Stream - Arts,Kalyani Publishers,1st,978-81-234-5678-9,350,5,A-105,false',
-      'PSC-9002,Modern Physics,Arthur Beiser,Physics,Stream - Science,McGraw Hill,6th,978-00-704-9553-1,520,4,B-210,false',
-      'PSC-9003,Yojana Magazine (Oct 2026),Govt of India,Current Affairs,Current Affairs,Publication Division,,N/A,30,3,REF-01,true',
-    ];
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...sampleRows].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', 'ps_college_catalogue_template.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    exportToExcel(
+      'ps_college_catalogue_template',
+      [
+        { header: 'AccessionNumber', accessor: (r: any) => r.accessionNumber },
+        { header: 'Title', accessor: (r: any) => r.title },
+        { header: 'Author', accessor: (r: any) => r.author },
+        { header: 'Subject', accessor: (r: any) => r.subject },
+        { header: 'Classification', accessor: (r: any) => r.classification },
+        { header: 'Publisher', accessor: (r: any) => r.publisher },
+        { header: 'Edition', accessor: (r: any) => r.edition },
+        { header: 'ISBN', accessor: (r: any) => r.isbn },
+        { header: 'Price', accessor: (r: any) => r.price },
+        { header: 'Copies', accessor: (r: any) => r.copies },
+        { header: 'ShelfLocation', accessor: (r: any) => r.shelfLocation },
+        { header: 'LibraryUseOnly', accessor: (r: any) => r.libraryUseOnly },
+      ],
+      [
+        {
+          accessionNumber: 'PSC-9001',
+          title: 'History of Odisha',
+          author: 'N.K. Sahu',
+          subject: 'History',
+          classification: 'Stream - Arts',
+          publisher: 'Kalyani Publishers',
+          edition: '1st',
+          isbn: '978-81-234-5678-9',
+          price: 350,
+          copies: 5,
+          shelfLocation: 'A-105',
+          libraryUseOnly: false,
+        },
+        {
+          accessionNumber: 'PSC-9002',
+          title: 'Modern Physics',
+          author: 'Arthur Beiser',
+          subject: 'Physics',
+          classification: 'Stream - Science',
+          publisher: 'McGraw Hill',
+          edition: '6th',
+          isbn: '978-00-704-9553-1',
+          price: 520,
+          copies: 4,
+          shelfLocation: 'B-210',
+          libraryUseOnly: false,
+        },
+        {
+          accessionNumber: 'PSC-9003',
+          title: 'Yojana Magazine (Oct 2026)',
+          author: 'Govt of India',
+          subject: 'Current Affairs',
+          classification: 'Current Affairs',
+          publisher: 'Publication Division',
+          edition: '',
+          isbn: 'N/A',
+          price: 30,
+          copies: 3,
+          shelfLocation: 'REF-01',
+          libraryUseOnly: true,
+        },
+      ],
+    );
   }
 
   function handleDownloadErrorReport() {
     if (errorsList.length === 0) return;
-    const headers = ['RowNumber', 'FailedData', 'Reason'];
-    const rows = errorsList.map((err) =>
-      `"${err.rowNumber}","${err.data.replace(/"/g, '""')}","${err.reason.replace(/"/g, '""')}"`
+    exportToExcel(
+      'import_error_report',
+      [
+        { header: 'RowNumber', accessor: (err: RowError) => err.rowNumber },
+        { header: 'FailedData', accessor: (err: RowError) => err.data },
+        { header: 'Reason', accessor: (err: RowError) => err.reason },
+      ],
+      errorsList,
     );
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', 'import_error_report.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   }
 
   async function handleProcessImport() {
     if (!file) {
-      toast.error('Please choose a CSV file first.');
+      toast.error('Please choose an Excel file first.');
       return;
     }
 
     setIsProcessing(true);
     const text = await file.text();
-    const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    let dataRows: string[] = [];
 
-    if (lines.length <= 1) {
+    if (text.includes('<Row')) {
+      const rowMatches = text.match(/<Row[\s\S]*?<\/Row>/gi) || [];
+      dataRows = rowMatches.slice(1).map((rowXml) => {
+        const cellMatches = rowXml.match(/<Data[\s\S]*?>([\s\S]*?)<\/Data>/gi) || [];
+        return cellMatches
+          .map((c) => c.replace(/<\/?Data[\s\S]*?>/gi, '').trim())
+          .join(',');
+      });
+    } else {
+      const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+      dataRows = lines.slice(1);
+    }
+
+    if (dataRows.length === 0) {
       toast.error('The selected file has no data rows.');
       setIsProcessing(false);
       return;
     }
-
-    const dataRows = lines.slice(1);
     const newErrors: RowError[] = [];
     const validBooksToAdd: Book[] = [];
     const existingAccessions = new Set(books.map((b) => b.accessionNumber.toUpperCase()));
@@ -199,6 +242,8 @@ export function BulkImportModal({ isOpen, onClose }: BulkImportModalProps) {
               ? 'Journals and Magazines'
               : 'Commerce',
         classification,
+        subject: subject || undefined,
+        department: subject || undefined,
         publisher: rawPub?.trim() || undefined,
         edition: rawEd?.trim() || undefined,
         isbn: rawIsbn?.trim() || undefined,
@@ -214,8 +259,8 @@ export function BulkImportModal({ isOpen, onClose }: BulkImportModalProps) {
     });
 
     // Commit valid books
+    addBooks(validBooksToAdd);
     validBooksToAdd.forEach((b) => {
-      addBook(b);
       addCopies(b.id, b.accessionNumber, b.totalCopies);
     });
 
@@ -242,10 +287,10 @@ export function BulkImportModal({ isOpen, onClose }: BulkImportModalProps) {
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Bulk Import Catalogue (FR-CAT-03)" size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Upload Excel (Books)" size="lg">
       <div className="space-y-5">
         <p className="text-sm text-secondary-600">
-          Upload an existing collection spreadsheet in CSV format. Valid records will be accessioned immediately; rows
+          Upload an existing collection spreadsheet in Excel format. Valid records will be accessioned immediately; rows
           with missing or invalid data are rejected with a downloadable error log.
         </p>
 
@@ -255,11 +300,11 @@ export function BulkImportModal({ isOpen, onClose }: BulkImportModalProps) {
             <FileSpreadsheet className="size-5 text-primary-600" />
             <div>
               <p className="text-sm font-medium text-ink">Download Column Template</p>
-              <p className="text-xs text-secondary-500">Standard CSV format with predefined column headers.</p>
+              <p className="text-xs text-secondary-500">Standard Excel format with predefined column headers.</p>
             </div>
           </div>
           <Button variant="outline" size="sm" onClick={handleDownloadTemplate}>
-            <Download className="mr-1.5 size-4" /> Download Template
+            <Download className="mr-1.5 size-4" /> Download Template (Excel)
           </Button>
         </div>
 
@@ -270,17 +315,17 @@ export function BulkImportModal({ isOpen, onClose }: BulkImportModalProps) {
               <Upload className="mx-auto size-8 text-secondary-400" />
               <div className="mt-2">
                 <label className="cursor-pointer font-medium text-primary-600 hover:text-primary-500">
-                  <span>Browse CSV file</span>
+                  <span>Browse Excel file</span>
                   <input
                     type="file"
-                    accept=".csv"
+                    accept=".csv,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
                     className="sr-only"
                     onChange={(e) => {
                       if (e.target.files?.[0]) setFile(e.target.files[0]);
                     }}
                   />
                 </label>
-                <p className="mt-1 text-xs text-secondary-500">CSV spreadsheet up to 5MB</p>
+                <p className="mt-1 text-xs text-secondary-500">Excel spreadsheet up to 5MB</p>
               </div>
               {file && (
                 <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700">
@@ -294,7 +339,7 @@ export function BulkImportModal({ isOpen, onClose }: BulkImportModalProps) {
                 Cancel
               </Button>
               <Button disabled={!file || isProcessing} isLoading={isProcessing} onClick={handleProcessImport}>
-                Start Bulk Import
+                Upload Excel
               </Button>
             </div>
           </div>
@@ -334,7 +379,7 @@ export function BulkImportModal({ isOpen, onClose }: BulkImportModalProps) {
                     Validation Errors ({errorsList.length})
                   </span>
                   <Button variant="outline" size="sm" onClick={handleDownloadErrorReport}>
-                    <Download className="mr-1.5 size-3.5" /> Download Error Report (.csv)
+                    <Download className="mr-1.5 size-3.5" /> Download Error Report (.xls)
                   </Button>
                 </div>
                 <div className="max-h-40 overflow-y-auto rounded-lg border border-secondary-200 bg-secondary-50 p-2 text-xs">

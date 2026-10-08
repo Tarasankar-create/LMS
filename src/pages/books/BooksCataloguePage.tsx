@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Plus } from 'lucide-react';
+import { Plus, FileSpreadsheet } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Button } from '@/components/common/Button';
 import { DataTable } from '@/components/tables/DataTable';
 import { createBookColumns } from '@/components/tables/columns/bookColumns';
 import { BookFormModal } from '@/components/modals/BookFormModal';
+import { BulkImportModal } from '@/components/modals/BulkImportModal';
 import { useConfirm } from '@/components/common/ConfirmDialogProvider';
 import { useCan } from '@/access/useCan';
 import { useBooksStore } from '@/store/booksStore';
@@ -32,6 +33,7 @@ export function BooksCataloguePage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingBook, setEditingBook] = useState<Book | undefined>(undefined);
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
 
   const visibleBooks = useMemo(() => books, [books]);
 
@@ -133,9 +135,14 @@ export function BooksCataloguePage() {
         description={`${books.length} titles shown below — a working sample of the college's full ${books.length >= 60 ? '4,250+' : ''} title holdings.`}
         actions={
           canCreate && (
-            <Button onClick={openAddForm}>
-              <Plus className="size-4" /> Add Book
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setBulkImportOpen(true)}>
+                <FileSpreadsheet className="size-4" /> Upload Excel
+              </Button>
+              <Button onClick={openAddForm}>
+                <Plus className="size-4" /> Add Book
+              </Button>
+            </div>
           )
         }
       />
@@ -159,6 +166,11 @@ export function BooksCataloguePage() {
         onClose={() => setFormOpen(false)}
         onSubmit={handleFormSubmit}
         existingBook={editingBook}
+      />
+
+      <BulkImportModal
+        isOpen={bulkImportOpen}
+        onClose={() => setBulkImportOpen(false)}
       />
     </div>
   );

@@ -38,6 +38,7 @@ describe('smoke', () => {
       expect(text, p).not.toContain('Page not found');
     }
     expect((await render('/notices')).text).toContain('New Notice');
+    expect((await render('/books')).text).toContain('Upload Excel');
     expect((await render('/journals')).text).toContain('Journals');
     // the librarian queue and the barcode-scan issue field both render
     expect((await render('/requests')).text).toContain('Book Requests');

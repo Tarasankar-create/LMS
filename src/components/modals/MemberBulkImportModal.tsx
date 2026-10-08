@@ -65,7 +65,7 @@ export function MemberBulkImportModal({ isOpen, onClose }: MemberBulkImportModal
 
   async function handleProcessImport() {
     if (!file) {
-      toast.error('Please choose a CSV / Excel export file first.');
+      toast.error('Please choose an Excel file first.');
       return;
     }
 
@@ -220,10 +220,10 @@ export function MemberBulkImportModal({ isOpen, onClose }: MemberBulkImportModal
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Bulk Upload Students (Excel / CSV)" size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Upload Excel (Students)" size="lg">
       <div className="space-y-5">
         <p className="text-sm text-secondary-600">
-          Upload a student roster spreadsheet in CSV format. Valid student records will be registered immediately with
+          Upload a student roster spreadsheet in Excel format. Valid student records will be registered immediately with
           their department, roll number, and credentials.
         </p>
 
@@ -246,7 +246,7 @@ export function MemberBulkImportModal({ isOpen, onClose }: MemberBulkImportModal
             <input
               type="file"
               id="student-import-file"
-              accept=".csv,text/csv,text/plain"
+              accept=".csv,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain"
               className="hidden"
               onChange={(e) => {
                 const selected = e.target.files?.[0];
@@ -259,9 +259,9 @@ export function MemberBulkImportModal({ isOpen, onClose }: MemberBulkImportModal
             <label htmlFor="student-import-file" className="flex cursor-pointer flex-col items-center gap-2">
               <FileSpreadsheet className="size-10 text-secondary-400" />
               <span className="text-sm font-medium text-secondary-700">
-                {file ? file.name : 'Click to select CSV / Excel export file'}
+                {file ? file.name : 'Click to select Excel file'}
               </span>
-              <span className="text-xs text-secondary-400">Accepts .csv files (Standard Excel CSV export format)</span>
+              <span className="text-xs text-secondary-400">Accepts Excel spreadsheet (.xlsx, .xls, .csv) files</span>
             </label>
           </div>
         )}
@@ -359,7 +359,7 @@ export function MemberBulkImportModal({ isOpen, onClose }: MemberBulkImportModal
             <Button onClick={handleReset}>Upload Another File</Button>
           ) : (
             <Button disabled={!file || isProcessing} isLoading={isProcessing} onClick={handleProcessImport}>
-              <Upload className="size-4" /> Start Bulk Import
+              <Upload className="size-4" /> Upload Excel
             </Button>
           )}
         </div>

@@ -112,7 +112,7 @@ export function StaffBulkImportModal({ isOpen, onClose }: StaffBulkImportModalPr
 
   async function handleProcessImport() {
     if (!file) {
-      toast.error('Please choose a CSV / Excel export file first.');
+      toast.error('Please choose an Excel file first.');
       return;
     }
 
@@ -287,10 +287,10 @@ export function StaffBulkImportModal({ isOpen, onClose }: StaffBulkImportModalPr
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Bulk Upload Staff, Librarians & Principals (Excel / CSV)" size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Upload Excel (Staff & Librarians)" size="lg">
       <div className="space-y-5">
         <p className="text-sm text-secondary-600">
-          Upload staff, librarian, or principal credentials in bulk using a CSV or Excel spreadsheet export. Valid accounts will be created and activated immediately.
+          Upload staff, librarian, or principal credentials in bulk using an Excel spreadsheet. Valid accounts will be created and activated immediately.
         </p>
 
         {/* Step 1: Download Templates */}
@@ -317,7 +317,7 @@ export function StaffBulkImportModal({ isOpen, onClose }: StaffBulkImportModalPr
             <input
               type="file"
               id="staff-bulk-import-file"
-              accept=".csv,text/csv,text/plain"
+              accept=".csv,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain"
               className="hidden"
               onChange={(e) => {
                 const selected = e.target.files?.[0];
@@ -330,9 +330,9 @@ export function StaffBulkImportModal({ isOpen, onClose }: StaffBulkImportModalPr
             <label htmlFor="staff-bulk-import-file" className="flex cursor-pointer flex-col items-center gap-2">
               <FileSpreadsheet className="size-10 text-secondary-400" />
               <span className="text-sm font-medium text-secondary-700">
-                {file ? file.name : 'Click to select CSV / Excel export file'}
+                {file ? file.name : 'Click to select Excel file'}
               </span>
-              <span className="text-xs text-secondary-400">Accepts .csv files (Standard Excel CSV export format)</span>
+              <span className="text-xs text-secondary-400">Accepts Excel spreadsheet (.xlsx, .xls, .csv) files</span>
             </label>
           </div>
         )}
@@ -430,7 +430,7 @@ export function StaffBulkImportModal({ isOpen, onClose }: StaffBulkImportModalPr
             <Button onClick={handleReset}>Upload Another File</Button>
           ) : (
             <Button disabled={!file || isProcessing} isLoading={isProcessing} onClick={handleProcessImport}>
-              <Upload className="size-4" /> Start Bulk Import
+              <Upload className="size-4" /> Upload Excel
             </Button>
           )}
         </div>

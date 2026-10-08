@@ -173,7 +173,7 @@ export function AdminUsersPage() {
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setIsBulkImportOpen(true)} className="gap-2">
               <FileSpreadsheet className="size-4" />
-              Bulk Upload (Excel/CSV)
+              Upload Excel
             </Button>
             <Button onClick={() => setIsAddModalOpen(true)} className="gap-2">
               <UserPlus className="size-4" />

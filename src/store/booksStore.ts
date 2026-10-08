@@ -6,6 +6,7 @@ interface BooksState {
   books: Book[];
   setBooks: (books: Book[]) => void;
   addBook: (book: Book) => void;
+  addBooks: (books: Book[]) => void;
   updateBook: (id: string, updates: Partial<Book>) => void;
   retireBook: (id: string) => void;
   decrementAvailable: (accessionNumber: string) => void;
@@ -20,6 +21,7 @@ export const useBooksStore = create<BooksState>()(
       books: [],
       setBooks: (books) => set({ books }),
       addBook: (book) => set((state) => ({ books: [book, ...state.books] })),
+      addBooks: (newBooks) => set((state) => ({ books: [...newBooks, ...state.books] })),
       updateBook: (id, updates) =>
         set((state) => ({ books: state.books.map((b) => (b.id === id ? { ...b, ...updates } : b)) })),
       retireBook: (id) =>
